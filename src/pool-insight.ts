@@ -9,6 +9,11 @@ export type PoolBreakdown = {
   totalRatio: number;
 };
 
+export type PoolInsightView = {
+  lines: Array<{ label: string; value: string }>;
+  advice: string | null;
+};
+
 function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -72,6 +77,53 @@ export function buildPoolAdvice(
   return "Manual models are fine; watch the API pool on expensive picks.";
 }
 
+function buildPoolInsightLines(
+  breakdown: PoolBreakdown,
+  onDemand: UsagePayload["onDemand"],
+): PoolInsightView["lines"] {
+  const lines: PoolInsightView["lines"] = [];
+  if (breakdown.api) {
+    const percent =
+      breakdown.api.percentUsed !== null ? `${Math.round(breakdown.api.percentUsed)}% · ` : "";
+    lines.push({
+      label: "API pool",
+      value: `${percent}${dollars(breakdown.api.usedCents)} / ${dollars(breakdown.api.limitCents)}`,
+    });
+  }
+  if (breakdown.bonus) {
+    lines.push({
+      label: "Bonus",
+      value: `${dollars(breakdown.bonus.usedCents)} / ${dollars(breakdown.bonus.limitCents)}`,
+    });
+  }
+  if (breakdown.autoPercentUsed !== null) {
+    lines.push({
+      label: "Auto / Cursor Models",
+      value: `~${breakdown.autoPercentUsed.toFixed(1)}% used`,
+    });
+  }
+  if (onDemand.state !== "disabled") {
+    const value =
+      onDemand.state === "unlimited"
+        ? `$${onDemand.spendDollars.toFixed(2)}`
+        : `$${onDemand.spendDollars.toFixed(2)} / $${(onDemand.limitDollars ?? 0).toFixed(2)}`;
+    lines.push({ label: "On-demand", value });
+  }
+  return lines;
+}
+
+export function buildPoolInsightView(
+  data: Pick<UsagePayload, "includedRequests" | "onDemand">,
+): PoolInsightView | null {
+  const breakdown = buildPoolBreakdown(data);
+  if (!breakdown.hasPools) return null;
+
+  return {
+    lines: buildPoolInsightLines(breakdown, data.onDemand),
+    advice: buildPoolAdvice(breakdown, data.onDemand),
+  };
+}
+
 export function formatPoolInsightMarkdown(
   breakdown: PoolBreakdown,
   onDemand: UsagePayload["onDemand"],
@@ -79,31 +131,9 @@ export function formatPoolInsightMarkdown(
 ): string {
   if (!breakdown.hasPools) return "";
 
-  const lines: string[] = [];
-  if (breakdown.api) {
-    const pct =
-      breakdown.api.percentUsed !== null
-        ? `${Math.round(breakdown.api.percentUsed)}% · `
-        : "";
-    lines.push(
-      `API pool — ${pct}${dollars(breakdown.api.usedCents)} / ${dollars(breakdown.api.limitCents)}`,
-    );
-  }
-  if (breakdown.bonus) {
-    lines.push(
-      `Bonus — ${dollars(breakdown.bonus.usedCents)} / ${dollars(breakdown.bonus.limitCents)}`,
-    );
-  }
-  if (breakdown.autoPercentUsed !== null) {
-    lines.push(`Auto / Cursor Models — ~${breakdown.autoPercentUsed.toFixed(1)}% used`);
-  }
-  if (onDemand.state !== "disabled") {
-    const odText =
-      onDemand.state === "unlimited"
-        ? `$${onDemand.spendDollars.toFixed(2)}`
-        : `$${onDemand.spendDollars.toFixed(2)} / $${(onDemand.limitDollars ?? 0).toFixed(2)}`;
-    lines.push(`On-demand — ${odText}`);
-  }
+  const lines = buildPoolInsightLines(breakdown, onDemand).map(
+    ({ label, value }) => `${label} — ${value}`,
+  );
 
   let out = `\n<sub>${lines.join("<br/>")}</sub>\n`;
   if (advice) {

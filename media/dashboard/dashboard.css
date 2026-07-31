@@ -121,6 +121,70 @@ label {
 }
 label select { color: var(--input-fg); }
 
+.guide-section {
+  margin-bottom: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px 12px;
+}
+.guide-section .events-header {
+  margin-bottom: 0;
+}
+.guide-section.collapsed .section-body {
+  display: none;
+}
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.guide-table th,
+.guide-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  line-height: 1.4;
+}
+.guide-table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11px;
+}
+.guide-table tr:last-child td {
+  border-bottom: none;
+}
+.guide-note {
+  margin: 10px 2px 2px;
+}
+.guide-note .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+.pool-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+.pool-cursor {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.pool-api {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.pool-bonus {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  opacity: 0.95;
+}
+.pool-ondemand {
+  background: color-mix(in srgb, var(--accent, #6c8cff) 18%, transparent);
+}
+
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -142,6 +206,33 @@ label select { color: var(--input-fg); }
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.pool-insight {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+}
+.pool-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.pool-row-label { color: var(--muted); }
+.pool-row-value {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.pool-advice {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .card {
@@ -176,12 +267,44 @@ label select { color: var(--input-fg); }
   background: var(--bar-track);
   border-radius: 2px;
   overflow: hidden;
+  position: relative;
 }
 .progress > div {
   height: 100%;
   background: var(--fg);
   opacity: 0.85;
   transition: width 200ms ease;
+}
+.progress.segmented {
+  overflow: visible;
+}
+.progress.segmented .seg-api,
+.progress.segmented .seg-bonus {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 0;
+  transition: width 200ms ease, left 200ms ease;
+}
+.progress.segmented .seg-api {
+  left: 0;
+  background: var(--fg);
+  opacity: 0.9;
+  border-radius: 2px 0 0 2px;
+}
+.progress.segmented .seg-bonus {
+  background: var(--fg);
+  opacity: 0.4;
+}
+.progress.segmented .seg-boundary {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  background: var(--fg);
+  opacity: 0.75;
+  border-radius: 1px;
 }
 
 .controls {

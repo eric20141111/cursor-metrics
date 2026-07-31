@@ -33,6 +33,7 @@
     breakdownSortKey: persisted.breakdownSortKey || "totalTokens",
     breakdownSortOrder: persisted.breakdownSortOrder || "desc",
     sectionOpen: {
+      guide: persisted.sectionOpen?.guide === true,
       usage: persisted.sectionOpen?.usage !== false,
       breakdown: persisted.sectionOpen?.breakdown !== false,
       events: persisted.sectionOpen?.events !== false,
@@ -80,6 +81,7 @@
   }
 
   function applySectionState() {
+    setSectionCollapsed("guide", local.sectionOpen.guide);
     setSectionCollapsed("usage", local.sectionOpen.usage);
     setSectionCollapsed("breakdown", local.sectionOpen.breakdown);
     setSectionCollapsed("events", local.sectionOpen.events);
@@ -194,22 +196,90 @@
     });
   }
 
+  function formatIncludedUsage(used, limit, unit) {
+    if (unit === "cents") {
+      return formatDollars(used / 100) + " / " + formatDollars(limit / 100);
+    }
+    return used + " / " + limit;
+  }
+
+  function buildIncludedBarModel(included) {
+    const ratio = included.limit > 0 ? Math.min(1, Math.max(0, included.used / included.limit)) : 0;
+    const bonusCents = included.bonusCents || 0;
+    const hasBonus = bonusCents > 0
+      && included.apiLimit != null
+      && included.limit > 0
+      && included.limit !== included.apiLimit;
+    if (!hasBonus) return { ratio: ratio, segments: null };
+
+    const apiLimit = included.apiLimit;
+    const apiUsed = Math.min(Math.max(included.apiUsed || 0, 0), apiLimit);
+    const bonusLimit = Math.max(included.limit - apiLimit, bonusCents);
+    const bonusUsed = Math.min(Math.max(included.used - apiLimit, 0), bonusLimit);
+    return {
+      ratio: ratio,
+      segments: {
+        apiShare: apiLimit / included.limit,
+        apiFilled: apiUsed / included.limit,
+        bonusFilled: bonusUsed / included.limit,
+        apiUsed: apiUsed,
+        apiLimit: apiLimit,
+        bonusUsed: bonusUsed,
+        bonusLimit: bonusLimit,
+      },
+    };
+  }
+
+  function renderIncludedProgress(included, includedUnit) {
+    const model = buildIncludedBarModel(included);
+    if (!model.segments) {
+      return '<div class="progress"><div style="width:' + Math.round(model.ratio * 100) + '%"></div></div>';
+    }
+    const s = model.segments;
+    const apiPct = Math.round(s.apiFilled * 1000) / 10;
+    const bonusLeft = Math.round(s.apiShare * 1000) / 10;
+    const bonusPct = Math.round(s.bonusFilled * 1000) / 10;
+    let caption;
+    if (includedUnit === "cents") {
+      caption = "API " + formatDollars(s.apiUsed / 100) + "/" + formatDollars(s.apiLimit / 100)
+        + " · Bonus " + formatDollars(s.bonusUsed / 100) + "/" + formatDollars(s.bonusLimit / 100);
+    } else {
+      caption = "API " + s.apiUsed + "/" + s.apiLimit + " · Bonus " + s.bonusUsed + "/" + s.bonusLimit;
+    }
+    return (
+      '<div class="progress segmented">' +
+        '<div class="seg-api" style="width:' + apiPct + '%"></div>' +
+        '<div class="seg-bonus" style="left:' + bonusLeft + '%;width:' + bonusPct + '%"></div>' +
+        '<div class="seg-boundary" style="left:' + bonusLeft + '%"></div>' +
+      "</div>" +
+      '<div class="card-footer">' + caption + "</div>"
+    );
+  }
+
   function renderSummaryCards() {
     if (!state || !state.data) {
       ui.summaryCards.innerHTML = '<div class="card"><div class="card-label">No data yet</div></div>';
       return;
     }
     const { includedRequests, onDemand } = state.data;
-    const reqRatio = includedRequests.limit > 0 ? Math.min(1, includedRequests.used / includedRequests.limit) : 0;
-    const reqPct = Math.round(reqRatio * 100);
+    const includedUnit = includedRequests.unit || "requests";
+    const barModel = buildIncludedBarModel(includedRequests);
+    const hasBonus = Boolean(barModel.segments);
+    const includedLabel = includedUnit === "cents"
+      ? (hasBonus ? "Included Usage (total)" : "Included Usage")
+      : "Included-Request Usage";
+    const resetLine = formatResetCountdown(state.resetsAt);
+    const progressHtml = renderIncludedProgress(includedRequests, includedUnit);
 
     const parts = [];
     parts.push(
       '<div class="card">' +
-        '<div class="card-label">Included-Request Usage</div>' +
-        '<div class="card-value">' + includedRequests.used + " / " + includedRequests.limit + "</div>" +
-        '<div class="progress"><div style="width:' + (reqPct) + '%"></div></div>' +
-        '<div class="card-footer">' + formatResetCountdown(state.resetsAt) + "</div>" +
+        '<div class="card-label">' + includedLabel + '</div>' +
+        '<div class="card-value">' + formatIncludedUsage(includedRequests.used, includedRequests.limit, includedUnit) + "</div>" +
+        progressHtml +
+        (hasBonus
+          ? (resetLine ? '<div class="card-footer">' + resetLine + "</div>" : "")
+          : '<div class="card-footer">' + resetLine + "</div>") +
       "</div>"
     );
 
@@ -233,6 +303,20 @@
         "</div>"
       );
     }
+
+    if (state.poolInsight && state.poolInsight.lines && state.poolInsight.lines.length) {
+      const rows = state.poolInsight.lines.map((line) =>
+        '<div class="pool-row">' +
+          '<span class="pool-row-label">' + escapeHtml(line.label) + "</span>" +
+          '<span class="pool-row-value">' + escapeHtml(line.value) + "</span>" +
+        "</div>"
+      ).join("");
+      const advice = state.poolInsight.advice
+        ? '<div class="pool-advice">' + escapeHtml(state.poolInsight.advice) + "</div>"
+        : "";
+      parts.push('<div class="pool-insight">' + rows + advice + "</div>");
+    }
+
     ui.summaryCards.innerHTML = parts.join("");
   }
 

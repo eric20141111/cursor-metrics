@@ -11,7 +11,7 @@ const dayMs = 86_400_000;
 const now = Date.UTC(2026, 3, 20, 12, 0, 0);
 
 const sampleData: UsagePayload = {
-  includedRequests: { used: 100, limit: 500 },
+  includedRequests: { used: 100, limit: 500, unit: "requests" },
   onDemand: { state: "limited", spendDollars: 12.5, limitDollars: 100 },
   resetsAt: null,
 };
@@ -47,6 +47,30 @@ describe("buildDashboardState", () => {
     const state = buildDashboardState(null, [], [], false, "boom", now);
     expect(state.data).toBeNull();
     expect(state.error).toBe("boom");
+  });
+
+  it("includes poolInsight lines and advice for cents payloads", () => {
+    const data: UsagePayload = {
+      includedRequests: {
+        used: 2112,
+        limit: 6166,
+        unit: "cents",
+        apiUsed: 2000,
+        apiLimit: 2000,
+        bonusCents: 4166,
+        apiPercentUsed: 100,
+        autoPercentUsed: 5.64,
+        totalPercentUsed: 34.26,
+      },
+      onDemand: { state: "unlimited", spendDollars: 32.31, limitDollars: null },
+      resetsAt: "2026-08-29T00:00:00.000Z",
+    };
+
+    const state = buildDashboardState(data, [], [], true, null, now);
+
+    expect(state.poolInsight).not.toBeNull();
+    expect(state.poolInsight!.advice).toContain("Prefer Auto / Cursor Models");
+    expect(state.poolInsight!.lines.some((line) => line.label === "API pool")).toBeTrue();
   });
 });
 

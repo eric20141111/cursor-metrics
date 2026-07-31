@@ -1,5 +1,6 @@
 import type { DailySpendRow, UsageEvent, UsagePayload } from "./cursor-api";
 import { getDurationCutoff, type UsageDuration } from "./model-breakdown";
+import { buildPoolInsightView } from "./pool-insight";
 
 export type ChartMetric = "spend" | "tokens" | "requests";
 export type UsageFilter = "all" | "included" | "ondemand";
@@ -22,6 +23,7 @@ export type DashboardState = {
   resetsAt: string | null;
   isTeamMember: boolean;
   quotaAwareEventDisplay: boolean;
+  poolInsight: ReturnType<typeof buildPoolInsightView>;
   error: string | null;
 };
 
@@ -67,6 +69,7 @@ export function buildDashboardState(
     resetsAt: data?.resetsAt ?? null,
     isTeamMember,
     quotaAwareEventDisplay,
+    poolInsight: data ? buildPoolInsightView(data) : null,
     error,
   };
 }
