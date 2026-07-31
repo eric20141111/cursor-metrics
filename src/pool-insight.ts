@@ -1,4 +1,5 @@
 import type { UsagePayload } from "./cursor-api";
+import { toMarkdownBlock } from "./tooltip-card";
 import type {
   TooltipCardRenderer,
   TooltipCardTone,
@@ -36,14 +37,15 @@ export function formatTooltipNoticeMarkdown(
     `</table>`,
   ].join("\n");
   if (renderCard) {
-    return `${renderCard(content, text.length > 70 ? 82 : 64, tone)}\n`;
+    return toMarkdownBlock(renderCard(content, text.length > 70 ? 82 : 64, tone));
   }
-  return [
-    `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="${cardBorderColor(tone)}">`,
-    `  <tr><td width="24" valign="top">${icon}</td><td><em>${text}</em></td></tr>`,
-    `</table>`,
-    ``,
-  ].join("\n");
+  return toMarkdownBlock(
+    [
+      `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="${cardBorderColor(tone)}">`,
+      `  <tr><td width="24" valign="top">${icon}</td><td><em>${text}</em></td></tr>`,
+      `</table>`,
+    ].join("\n"),
+  );
 }
 
 function dollars(cents: number): string {
@@ -179,27 +181,19 @@ export function formatPoolInsightMarkdown(
     ...lines,
     `</table>`,
   ].join("\n");
-  const poolCard = renderCard
-    ? renderCard(poolContent, 32 + lines.length * 20, "info")
-    : [
-        `<table width="302" cellspacing="0" cellpadding="6" border="2" bordercolor="#3B82F6">`,
-        ...lines,
-        `</table>`,
-      ].join("\n");
+  const poolCard = toMarkdownBlock(
+    renderCard
+      ? renderCard(poolContent, 32 + lines.length * 20, "info")
+      : [
+          `<table width="302" cellspacing="0" cellpadding="6" border="2" bordercolor="#3B82F6">`,
+          ...lines,
+          `</table>`,
+        ].join("\n"),
+  );
 
-  let out = [
-    ``,
-    `**$(layers) Pool breakdown**`,
-    ``,
-    poolCard,
-    ``,
-  ].join("\n");
+  let out = `\n**$(layers) Pool breakdown**\n\n${poolCard}`;
   if (advice) {
-    out += [
-      `**$(lightbulb) Recommendation**`,
-      ``,
-      formatTooltipNoticeMarkdown(advice, "💡", "warning", renderCard),
-    ].join("\n");
+    out += `**$(lightbulb) Recommendation**\n\n${formatTooltipNoticeMarkdown(advice, "💡", "warning", renderCard)}`;
   }
   return out;
 }

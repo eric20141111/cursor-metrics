@@ -14,6 +14,7 @@ import {
   formatTooltipNoticeMarkdown,
 } from "./pool-insight";
 import { buildSpendForecast } from "./spend-forecast";
+import { toMarkdownBlock } from "./tooltip-card";
 import type { TooltipCardRenderer } from "./tooltip-card";
 
 type IncludedRequestsUsage = UsagePayload["includedRequests"];
@@ -66,9 +67,9 @@ function buildSummaryTable(columns: SummaryColumn[], renderProgressBar: Progress
       `  <tr><td>${columns[0]!.footer}</td></tr>`,
       `</table>`,
     ].join("\n");
-    return renderProgressBar.card
-      ? `${renderProgressBar.card(table, 86, "neutral")}\n`
-      : `${table}\n`;
+    return toMarkdownBlock(
+      renderProgressBar.card ? renderProgressBar.card(table, 86, "neutral") : table,
+    );
   }
 
   const table = [
@@ -78,9 +79,9 @@ function buildSummaryTable(columns: SummaryColumn[], renderProgressBar: Progress
     `  <tr><td>${columns[0]!.footer}</td><td>${columns[1]!.footer}</td></tr>`,
     `</table>`,
   ].join("\n");
-  return renderProgressBar.card
-    ? `${renderProgressBar.card(table, 96, "neutral")}\n`
-    : `${table}\n`;
+  return toMarkdownBlock(
+    renderProgressBar.card ? renderProgressBar.card(table, 96, "neutral") : table,
+  );
 }
 
 function renderIncludedFooter(
@@ -180,17 +181,12 @@ export function buildUsageOverviewMarkdown(
     if (forecast.tooltipLine) {
       const icon = forecast.level === "high" ? "⚠️" : "📈";
       const tone = forecast.level === "high" ? "danger" : "info";
-      md += [
-        ``,
-        `**$(graph) Budget forecast**`,
-        ``,
-        formatTooltipNoticeMarkdown(
-          forecast.tooltipLine,
-          icon,
-          tone,
-          renderProgressBar.card,
-        ),
-      ].join("\n");
+      md += `**$(graph) Budget forecast**\n\n${formatTooltipNoticeMarkdown(
+        forecast.tooltipLine,
+        icon,
+        tone,
+        renderProgressBar.card,
+      )}`;
     }
   }
 

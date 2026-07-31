@@ -126,6 +126,39 @@ describe("buildUsageOverviewMarkdown", () => {
   });
 });
 
+describe("card layout", () => {
+  it("keeps every card in its own paragraph so headings never sit beside it", () => {
+    const markdown = buildUsageOverviewMarkdown(
+      {
+        includedRequests: {
+          used: 2112,
+          limit: 6166,
+          unit: "cents",
+          apiUsed: 2000,
+          apiLimit: 2000,
+          bonusCents: 4166,
+          apiPercentUsed: 100,
+          autoPercentUsed: 5.64,
+          totalPercentUsed: 34.26,
+        },
+        onDemand: { state: "limited", spendDollars: 114.78, limitDollars: 300 },
+        resetsAt: new Date(Date.UTC(2026, 7, 20)).toISOString(),
+      },
+      { ...progressBar, card: (content, height) => `<img src="card-${height}" />` },
+      { events: [], monthlyBudgetDollars: null, now: Date.UTC(2026, 6, 31) },
+    );
+
+    const lines = markdown.split("\n");
+    const cardLines = lines.filter((line) => line.includes("<img src=\"card-"));
+    expect(cardLines.length).toBeGreaterThan(1);
+
+    lines.forEach((line, index) => {
+      if (!line.includes("<img src=\"card-")) return;
+      expect(lines[index + 1] ?? "").toBe("");
+    });
+  });
+});
+
 describe("buildUsageByModelHeadingMarkdown", () => {
   it("includes a Change link that routes to the duration setting", () => {
     const markdown = buildUsageByModelHeadingMarkdown("billingCycle");

@@ -31,7 +31,9 @@ import {
 } from "./tooltip";
 import { buildSpendForecast } from "./spend-forecast";
 import {
+  cardHeightForRows,
   renderTooltipRoundedCard as renderTooltipRoundedCardSvg,
+  toMarkdownBlock,
   type TooltipCardTone,
 } from "./tooltip-card";
 
@@ -232,16 +234,16 @@ function buildModelBreakdownTableMarkdown(
   rows: Array<{ model: string; totalTokens: number; requests: number; spendCents: number }>,
 ): string {
   if (rows.length === 0) {
-    return `${renderTooltipRoundedCard("<em>No usage in this period</em>", 48, "neutral")}\n`;
+    return toMarkdownBlock(renderTooltipRoundedCard("<em>No usage in this period</em>", 48, "neutral"));
   }
 
   const lines = [
-    `<table width="100%" cellspacing="0" cellpadding="0">`,
+    `<table class="rows" width="100%" cellspacing="0" cellpadding="0">`,
     `  <tr>`,
-    `    <th align="left" width="45%">Model</th>`,
-    `    <th align="right" width="15%">Requests</th>`,
-    `    <th align="right" width="20%">Tokens</th>`,
-    `    <th align="right" width="20%">Spend</th>`,
+    `    <th align="left" width="46%">Model</th>`,
+    `    <th align="right" width="16%">Reqs</th>`,
+    `    <th align="right" width="19%">Tokens</th>`,
+    `    <th align="right" width="19%">Spend</th>`,
     `  </tr>`,
   ];
 
@@ -257,7 +259,9 @@ function buildModelBreakdownTableMarkdown(
   }
 
   lines.push(`</table>`);
-  return `${renderTooltipRoundedCard(lines.join("\n"), 42 + rows.length * 22, "neutral")}\n`;
+  return toMarkdownBlock(
+    renderTooltipRoundedCard(lines.join("\n"), cardHeightForRows(rows.length + 1), "neutral"),
+  );
 }
 
 function isOnDemandVisible(onDemand: OnDemandUsage): boolean {
@@ -346,7 +350,6 @@ function updateStatusBar(data: UsagePayload) {
       monthlyBudgetDollars: config.monthlyOnDemandBudget,
     },
   );
-  md += `\n`;
 
   if (lastEvents && lastEvents.length > 0) {
     const usageDuration: UsageDuration = resolveConfiguredUsageDuration(config.usageDuration, Boolean(data.resetsAt));
@@ -365,11 +368,9 @@ function updateStatusBar(data: UsagePayload) {
   }
 
   if (data.resetsAt) {
-    md += `${renderTooltipRoundedCard(
-      `📅 <em>Resets ${formatResetDate(data.resetsAt)}</em>`,
-      48,
-      "neutral",
-    )}\n`;
+    md += toMarkdownBlock(
+      renderTooltipRoundedCard(`📅 <em>Resets ${formatResetDate(data.resetsAt)}</em>`, 48, "neutral"),
+    );
   }
 
   const actionBackground = isLightTheme() ? "#DBEAFE" : "#1E3A5F";
