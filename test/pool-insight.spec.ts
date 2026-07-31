@@ -3,6 +3,7 @@ import type { UsagePayload } from "../src/cursor-api";
 import {
   buildPoolAdvice,
   buildPoolBreakdown,
+  buildPoolInsightView,
   formatPoolInsightMarkdown,
 } from "../src/pool-insight";
 
@@ -11,7 +12,7 @@ function centsPayload(partial: {
   limit: number;
   apiUsed: number;
   apiLimit: number;
-  bonusCents: number;
+  bonusCents?: number | null;
   apiPercentUsed?: number | null;
   autoPercentUsed?: number | null;
   totalPercentUsed?: number | null;
@@ -24,7 +25,7 @@ function centsPayload(partial: {
       unit: "cents",
       apiUsed: partial.apiUsed,
       apiLimit: partial.apiLimit,
-      bonusCents: partial.bonusCents,
+      bonusCents: partial.bonusCents ?? null,
       apiPercentUsed: partial.apiPercentUsed ?? null,
       autoPercentUsed: partial.autoPercentUsed ?? null,
       totalPercentUsed: partial.totalPercentUsed ?? null,
@@ -67,6 +68,24 @@ describe("buildPoolBreakdown", () => {
     expect(b.hasPools).toBe(false);
     expect(b.api).toBeNull();
     expect(b.bonus).toBeNull();
+  });
+
+  it("returns hasPools false for cents with apiLimit but no breakdown metadata", () => {
+    const data = centsPayload({
+      used: 1500,
+      limit: 2000,
+      apiUsed: 1500,
+      apiLimit: 2000,
+      bonusCents: null,
+      apiPercentUsed: 75,
+    });
+    const b = buildPoolBreakdown(data);
+    expect(b.hasPools).toBe(false);
+    expect(b.api).toBeNull();
+    expect(b.bonus).toBeNull();
+    expect(buildPoolAdvice(b, data.onDemand)).toBeNull();
+    expect(buildPoolInsightView(data)).toBeNull();
+    expect(formatPoolInsightMarkdown(b, data.onDemand, null)).toBe("");
   });
 });
 

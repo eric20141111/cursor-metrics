@@ -25,7 +25,12 @@ export function buildPoolBreakdown(
   const apiLimit = inc.apiLimit;
   const apiUsed = inc.apiUsed ?? 0;
   const unitOk = (inc.unit ?? "requests") === "cents";
-  const hasPools = unitOk && typeof apiLimit === "number" && apiLimit > 0;
+  const hasBreakdown =
+    inc.bonusCents != null ||
+    inc.totalPercentUsed != null ||
+    inc.limit !== apiLimit;
+  const hasPools =
+    unitOk && typeof apiLimit === "number" && apiLimit > 0 && hasBreakdown;
 
   if (!hasPools) {
     return {
