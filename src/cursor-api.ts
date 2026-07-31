@@ -1,9 +1,21 @@
 import { closeSync, existsSync, fstatSync, openSync, readSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import type { IncludedUnit } from "./format";
 
 export type UsagePayload = {
-  includedRequests: { used: number; limit: number };
+  includedRequests: {
+    used: number;
+    limit: number;
+    unit: IncludedUnit;
+    /** Base named-model API pool (cents), when summary provides breakdown. */
+    apiUsed?: number;
+    apiLimit?: number;
+    bonusCents?: number | null;
+    apiPercentUsed?: number | null;
+    autoPercentUsed?: number | null;
+    totalPercentUsed?: number | null;
+  };
   onDemand: {
     state: "disabled" | "limited" | "unlimited";
     spendDollars: number;
@@ -529,6 +541,196 @@ export function isTeamMemberCached(): boolean {
   return cachedSetup?.isTeamMember ?? false;
 }
 
+export type UsageSummaryBreakdown = {
+  included: number;
+  bonus: number;
+  total: number;
+};
+
+export type UsageSummaryPlan = {
+  used: number;
+  limit: number;
+  remaining: number | null;
+  enabled: boolean;
+  breakdown: UsageSummaryBreakdown | null;
+  totalPercentUsed: number | null;
+  apiPercentUsed: number | null;
+  autoPercentUsed: number | null;
+};
+
+export type UsageSummaryOnDemand = {
+  enabled: boolean;
+  usedCents: number;
+  limitCents: number | null;
+};
+
+export type ParsedUsageSummary = {
+  plan: UsageSummaryPlan | null;
+  onDemand: UsageSummaryOnDemand | null;
+  billingCycleEnd: string | null;
+  membershipType: string | null;
+  limitType: string | null;
+};
+
+function parseUsageSummaryBreakdown(raw: unknown): UsageSummaryBreakdown | null {
+  const breakdown = asRecord(raw);
+  if (!breakdown) return null;
+  const included = toNumber(breakdown.included);
+  const bonus = toNumber(breakdown.bonus);
+  const total = toNumber(breakdown.total);
+  if (included === null || bonus === null || total === null || total <= 0) return null;
+  return { included, bonus, total };
+}
+
+function parseUsageSummaryPlan(planRaw: unknown): UsageSummaryPlan | null {
+  const plan = asRecord(planRaw);
+  if (!plan || plan.enabled === false) return null;
+  const used = toNumber(plan.used);
+  const limit = toNumber(plan.limit);
+  if (used === null || limit === null) return null;
+  return {
+    used,
+    limit,
+    remaining: toNumber(plan.remaining),
+    enabled: true,
+    breakdown: parseUsageSummaryBreakdown(plan.breakdown),
+    totalPercentUsed: toNumber(plan.totalPercentUsed),
+    apiPercentUsed: toNumber(plan.apiPercentUsed),
+    autoPercentUsed: toNumber(plan.autoPercentUsed),
+  };
+}
+
+function parseUsageSummaryOnDemand(onDemandRaw: unknown): UsageSummaryOnDemand | null {
+  const onDemand = asRecord(onDemandRaw);
+  if (!onDemand) return null;
+  const usedCents = toNumber(onDemand.used) ?? 0;
+  const limitCents = toNumber(onDemand.limit);
+  return {
+    enabled: Boolean(onDemand.enabled),
+    usedCents,
+    limitCents,
+  };
+}
+
+/**
+ * Prefer included+bonus total pool when breakdown is present.
+ * Total used is derived from official totalPercentUsed (no absolute field in API).
+ */
+export function resolveIncludedDisplay(plan: UsageSummaryPlan): {
+  used: number;
+  limit: number;
+  apiUsed: number;
+  apiLimit: number;
+  bonusCents: number | null;
+} {
+  const apiUsed = plan.used;
+  const apiLimit = plan.limit;
+  if (plan.breakdown && plan.totalPercentUsed !== null) {
+    const used = Math.round((plan.totalPercentUsed / 100) * plan.breakdown.total);
+    return {
+      used: Math.min(used, plan.breakdown.total),
+      limit: plan.breakdown.total,
+      apiUsed,
+      apiLimit,
+      bonusCents: plan.breakdown.bonus,
+    };
+  }
+  return {
+    used: apiUsed,
+    limit: apiLimit,
+    apiUsed,
+    apiLimit,
+    bonusCents: plan.breakdown?.bonus ?? null,
+  };
+}
+
+/** Pure parser for GET /api/usage-summary — plan/onDemand amounts are cents. */
+export function parseUsageSummary(raw: unknown): ParsedUsageSummary | null {
+  const data = asRecord(raw);
+  if (!data) return null;
+
+  const individual = asRecord(data.individualUsage);
+  const plan = individual ? parseUsageSummaryPlan(individual.plan) : null;
+  const onDemand = individual ? parseUsageSummaryOnDemand(individual.onDemand) : null;
+  const billingCycleEnd = typeof data.billingCycleEnd === "string" ? data.billingCycleEnd : null;
+  const membershipType = typeof data.membershipType === "string" ? data.membershipType : null;
+  const limitType = typeof data.limitType === "string" ? data.limitType : null;
+
+  if (!plan && !onDemand) return null;
+
+  return { plan, onDemand, billingCycleEnd, membershipType, limitType };
+}
+
+export function usagePayloadFromSummary(
+  summary: ParsedUsageSummary,
+  setup: SetupCache,
+): UsagePayload | null {
+  if (!summary.plan) return null;
+
+  const onDemandApi = summary.onDemand;
+  let onDemand: UsagePayload["onDemand"];
+  if (!onDemandApi || !onDemandApi.enabled || !setup.onDemandEnabled) {
+    onDemand = { state: "disabled", spendDollars: 0, limitDollars: null };
+  } else if (onDemandApi.limitCents !== null && onDemandApi.limitCents > 0) {
+    onDemand = {
+      state: "limited",
+      spendDollars: onDemandApi.usedCents / 100,
+      limitDollars: onDemandApi.limitCents / 100,
+    };
+  } else {
+    onDemand = {
+      state: "unlimited",
+      spendDollars: onDemandApi.usedCents / 100,
+      limitDollars: null,
+    };
+  }
+
+  const included = resolveIncludedDisplay(summary.plan);
+
+  return {
+    includedRequests: {
+      used: included.used,
+      limit: included.limit,
+      unit: "cents",
+      apiUsed: included.apiUsed,
+      apiLimit: included.apiLimit,
+      bonusCents: included.bonusCents,
+      apiPercentUsed: summary.plan.apiPercentUsed,
+      autoPercentUsed: summary.plan.autoPercentUsed,
+      totalPercentUsed: summary.plan.totalPercentUsed,
+    },
+    onDemand,
+    resetsAt: summary.billingCycleEnd,
+  };
+}
+
+async function fetchUsageSummary(
+  headers: ReturnType<typeof cursorHeaders>,
+): Promise<ParsedUsageSummary | null> {
+  log("Fetching /api/usage-summary...");
+  const res = await fetch("https://cursor.com/api/usage-summary", withTimeout({ headers }));
+  log(`usage-summary status: ${res.status}`);
+  if (!res.ok) return null;
+  const raw = await res.json();
+  const parsed = parseUsageSummary(raw);
+  if (!parsed) {
+    log("usage-summary payload could not be parsed");
+    return null;
+  }
+  if (parsed.plan) {
+    const display = resolveIncludedDisplay(parsed.plan);
+    log(
+      `usage-summary plan: api=${parsed.plan.used}/${parsed.plan.limit}c totalDisplay=${display.used}/${display.limit}c bonus=${display.bonusCents ?? 0}c`,
+    );
+  }
+  if (parsed.onDemand) {
+    log(
+      `usage-summary onDemand: enabled=${parsed.onDemand.enabled} used=${parsed.onDemand.usedCents}c limit=${parsed.onDemand.limitCents ?? "∞"}`,
+    );
+  }
+  return parsed;
+}
+
 async function ensureSetup(
   userId: string,
   headers: ReturnType<typeof cursorHeaders>,
@@ -576,6 +778,23 @@ export async function fetchUsageData(): Promise<UsagePayload | null> {
     return null;
   }
 
+  const summary = await fetchUsageSummary(headers);
+  if (summary) {
+    const fromSummary = usagePayloadFromSummary(summary, setup);
+    if (fromSummary) {
+      const spendLimitLabel = fromSummary.onDemand.state === "unlimited"
+        ? "∞"
+        : fromSummary.onDemand.state === "disabled"
+          ? "hidden"
+          : `$${(fromSummary.onDemand.limitDollars ?? 0).toFixed(2)}`;
+      log(
+        `Result (usage-summary): $${(fromSummary.includedRequests.used / 100).toFixed(2)}/$${(fromSummary.includedRequests.limit / 100).toFixed(2)} included, $${fromSummary.onDemand.spendDollars.toFixed(2)}/${spendLimitLabel} on-demand`,
+      );
+      return fromSummary;
+    }
+  }
+
+  log("usage-summary unavailable; falling back to legacy usage endpoints");
   if (setup.isTeamMember) {
     return fetchTeamUsage(auth, headers, setup);
   }
@@ -630,18 +849,44 @@ async function fetchTeamUsage(
   const meRecord = asRecord(me) ?? {};
   log(`Team member keys: ${Object.keys(meRecord).join(", ") || "(none)"}`);
 
+  const includedSpendCents = toNumber(meRecord.includedSpendCents);
   const memberUsed = extractTeamUsedRequests(meRecord);
   const memberLimit = extractTeamRequestLimit(meRecord, setup.maxRequestUsage);
 
-  const used = usageTotals && usageTotals.used > 0 ? usageTotals.used : memberUsed.value;
-  const limit = usageTotals && usageTotals.limit > 0 ? usageTotals.limit : memberLimit.value;
-  const usedSource = usageTotals && usageTotals.used > 0
-    ? `usage.${usageTotals.source}.used`
-    : `member.${memberUsed.source}`;
-  const limitSource = usageTotals && usageTotals.limit > 0
-    ? `usage.${usageTotals.source}.limit`
-    : `member.${memberLimit.source}`;
-  log(`Team request source: used=${usedSource}, limit=${limitSource}`);
+  // Prefer modern includedSpendCents (cents) when legacy request counters are absent.
+  const useCentsPool = includedSpendCents !== null
+    && !(usageTotals && usageTotals.used > 0)
+    && memberUsed.source === "fallback:0";
+
+  let used: number;
+  let limit: number;
+  let unit: IncludedUnit;
+  let usedSource: string;
+  let limitSource: string;
+
+  if (useCentsPool) {
+    used = includedSpendCents;
+    // Team seat included pool is not always on the member row; fall back to known Pro-size $20.
+    const memberIncludedLimit = toNumber(meRecord.includedRequestLimit)
+      ?? toNumber(meRecord.includedSpendLimitCents);
+    limit = memberIncludedLimit !== null && memberIncludedLimit > 0
+      ? memberIncludedLimit
+      : Math.max(includedSpendCents, 2000);
+    unit = "cents";
+    usedSource = "member.includedSpendCents";
+    limitSource = memberIncludedLimit !== null ? "member.includedSpendLimit" : "fallback:2000c";
+  } else {
+    used = usageTotals && usageTotals.used > 0 ? usageTotals.used : memberUsed.value;
+    limit = usageTotals && usageTotals.limit > 0 ? usageTotals.limit : memberLimit.value;
+    unit = "requests";
+    usedSource = usageTotals && usageTotals.used > 0
+      ? `usage.${usageTotals.source}.used`
+      : `member.${memberUsed.source}`;
+    limitSource = usageTotals && usageTotals.limit > 0
+      ? `usage.${usageTotals.source}.limit`
+      : `member.${memberLimit.source}`;
+  }
+  log(`Team request source: used=${usedSource}, limit=${limitSource}, unit=${unit}`);
 
   const spendCents = toNumber(meRecord.spendCents) ?? 0;
   const spendDollars = spendCents / 100;
@@ -658,6 +903,7 @@ async function fetchTeamUsage(
     includedRequests: {
       used,
       limit,
+      unit,
     },
     onDemand: {
       state: onDemandState,
@@ -673,7 +919,7 @@ async function fetchTeamUsage(
       ? "hidden"
       : `$${(result.onDemand.limitDollars ?? 0).toFixed(2)}`;
   log(
-    `Result: ${result.includedRequests.used}/${result.includedRequests.limit} reqs, $${result.onDemand.spendDollars.toFixed(2)}/${spendLimitLabel}`,
+    `Result: ${result.includedRequests.used}/${result.includedRequests.limit} (${unit}), $${result.onDemand.spendDollars.toFixed(2)}/${spendLimitLabel}`,
   );
   return result;
 }
@@ -698,6 +944,7 @@ async function fetchSoloUsage(
     includedRequests: {
       used: totals.used,
       limit: totals.limit,
+      unit: "requests",
     },
     onDemand: setup.onDemandEnabled
       ? { state: "limited", spendDollars: 0, limitDollars: 0 }
