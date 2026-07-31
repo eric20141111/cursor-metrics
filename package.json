@@ -122,6 +122,12 @@
           "type": "boolean",
           "default": true,
           "description": "In the dashboard, show included usage as requests and on-demand usage as spend instead of showing raw request and spend values for every event."
+        },
+        "cursorUsage.monthlyOnDemandBudget": {
+          "type": ["number", "null"],
+          "default": null,
+          "minimum": 0,
+          "description": "Optional monthly On-demand cash budget in dollars. Used as the pace baseline when Cursor has no hard On-demand limit. Leave empty to show cycle estimates without high/low pace ratings."
         }
       }
     }

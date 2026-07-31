@@ -317,6 +317,31 @@
       parts.push('<div class="pool-insight">' + rows + advice + "</div>");
     }
 
+    if (state.spendForecast && state.spendForecast.rows && state.spendForecast.rows.length) {
+      const levelClass =
+        state.spendForecast.level === "high"
+          ? " forecast-high"
+          : state.spendForecast.level === "on_track"
+            ? " forecast-ok"
+            : "";
+      const rows = state.spendForecast.rows.map((line) =>
+        '<div class="pool-row">' +
+          '<span class="pool-row-label">' + escapeHtml(line.label) + "</span>" +
+          '<span class="pool-row-value">' + escapeHtml(line.value) + "</span>" +
+        "</div>"
+      ).join("");
+      const advice = state.spendForecast.advice
+        ? '<div class="pool-advice">' + escapeHtml(state.spendForecast.advice) + "</div>"
+        : "";
+      parts.push(
+        '<div class="pool-insight forecast-card' + levelClass + '">' +
+          '<div class="forecast-title">' + escapeHtml(state.spendForecast.title) + "</div>" +
+          rows +
+          advice +
+        "</div>"
+      );
+    }
+
     ui.summaryCards.innerHTML = parts.join("");
   }
 

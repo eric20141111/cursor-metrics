@@ -72,6 +72,38 @@ describe("buildDashboardState", () => {
     expect(state.poolInsight!.advice).toContain("Prefer Auto / Cursor Models");
     expect(state.poolInsight!.lines.some((line) => line.label === "API pool")).toBeTrue();
   });
+
+  it("includes spendForecast when on-demand is enabled", () => {
+    const data: UsagePayload = {
+      ...sampleData,
+      resetsAt: "2026-05-01T00:00:00.000Z",
+    };
+    const events: UsageEvent[] = [
+      {
+        timestamp: now - dayMs,
+        model: "gpt-5",
+        kind: "On-Demand",
+        totalTokens: 100,
+        requests: 1,
+        spendCents: 700,
+        maxMode: false,
+      },
+    ];
+    const state = buildDashboardState(data, events, [], false, null, now, true, 50);
+
+    expect(state.spendForecast).not.toBeNull();
+    expect(state.spendForecast!.title).toContain("Budget forecast");
+    expect(state.spendForecast!.rows.some((r) => r.label === "Cycle-end estimate")).toBeTrue();
+  });
+
+  it("omits spendForecast when on-demand is disabled", () => {
+    const data: UsagePayload = {
+      ...sampleData,
+      onDemand: { state: "disabled", spendDollars: 0, limitDollars: null },
+    };
+    const state = buildDashboardState(data, [], [], false, null, now);
+    expect(state.spendForecast).toBeNull();
+  });
 });
 
 describe("filterEventsForRange", () => {

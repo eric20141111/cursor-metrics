@@ -235,6 +235,22 @@ label select { color: var(--input-fg); }
   color: var(--muted);
 }
 
+.forecast-card .forecast-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 6px;
+}
+.forecast-card.forecast-high {
+  border-color: color-mix(in srgb, #c44 45%, var(--border));
+}
+.forecast-card.forecast-high .forecast-title {
+  color: color-mix(in srgb, #c44 70%, var(--fg));
+}
+.forecast-card.forecast-ok .forecast-title {
+  color: color-mix(in srgb, #3a8 55%, var(--fg));
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);

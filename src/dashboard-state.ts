@@ -1,6 +1,7 @@
 import type { DailySpendRow, UsageEvent, UsagePayload } from "./cursor-api";
 import { getDurationCutoff, type UsageDuration } from "./model-breakdown";
 import { buildPoolInsightView } from "./pool-insight";
+import { buildSpendForecast, formatForecastDashboard, type SpendForecast } from "./spend-forecast";
 
 export type ChartMetric = "spend" | "tokens" | "requests";
 export type UsageFilter = "all" | "included" | "ondemand";
@@ -15,6 +16,10 @@ export type ChartSeries = {
   datasets: ChartDataset[];
 };
 
+export type ForecastDashboardView = ReturnType<typeof formatForecastDashboard> & {
+  level: SpendForecast["level"];
+};
+
 export type DashboardState = {
   generatedAt: number;
   data: UsagePayload | null;
@@ -24,6 +29,7 @@ export type DashboardState = {
   isTeamMember: boolean;
   quotaAwareEventDisplay: boolean;
   poolInsight: ReturnType<typeof buildPoolInsightView>;
+  spendForecast: ForecastDashboardView | null;
   error: string | null;
 };
 
@@ -60,7 +66,20 @@ export function buildDashboardState(
   error: string | null,
   now: number,
   quotaAwareEventDisplay = true,
+  monthlyOnDemandBudget: number | null = null,
 ): DashboardState {
+  let spendForecast: ForecastDashboardView | null = null;
+  if (data && data.onDemand.state !== "disabled") {
+    const forecast = buildSpendForecast({
+      onDemand: data.onDemand,
+      resetsAt: data.resetsAt,
+      events,
+      monthlyBudgetDollars: monthlyOnDemandBudget,
+      now,
+    });
+    spendForecast = { ...formatForecastDashboard(forecast), level: forecast.level };
+  }
+
   return {
     generatedAt: now,
     data,
@@ -70,6 +89,7 @@ export function buildDashboardState(
     isTeamMember,
     quotaAwareEventDisplay,
     poolInsight: data ? buildPoolInsightView(data) : null,
+    spendForecast,
     error,
   };
 }

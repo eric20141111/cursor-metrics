@@ -48,6 +48,14 @@ describe("package configuration", () => {
     expect(quotaAwareConfig.type).toBe("boolean");
   });
 
+  it("exposes an optional monthly On-demand budget setting", () => {
+    const budgetConfig = packageJson.contributes.configuration.properties["cursorUsage.monthlyOnDemandBudget"];
+
+    expect(budgetConfig.default).toBeNull();
+    expect(budgetConfig.type).toEqual(["number", "null"]);
+    expect(budgetConfig.minimum).toBe(0);
+  });
+
   it("does not depend on external sqlite binaries or native bindings", () => {
     const vscodeIgnore = readFileSync(".vscodeignore", "utf-8").split(/\r?\n/);
     const esbuildConfig = readFileSync("esbuild.config.mjs", "utf-8");
