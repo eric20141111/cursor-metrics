@@ -7,7 +7,7 @@ import {
   type SortOrder,
   type UsageDuration,
 } from "./model-breakdown";
-import { buildModelEfficiency } from "./model-efficiency";
+import { buildModelEfficiency, formatCostPerM } from "./model-efficiency";
 import { buildPoolAdvice, buildPoolBreakdown } from "./pool-insight";
 import { buildSpendForecast } from "./spend-forecast";
 
@@ -28,7 +28,10 @@ export type BudgetAdviceInput = {
 
 export type BudgetAdviceReport = {
   statusLine: string;
+  /** All non-null tips in toast priority order: Pace → Pool → Efficiency. */
   tips: string[];
+  /** Single tip shown in the notification toast (first of `tips`). */
+  toastTip: string | null;
   toastMessage: string;
   detailText: string;
   poolAdvice: string | null;
@@ -62,8 +65,68 @@ function buildStatusLine(
   return parts.join(" · ");
 }
 
-function sectionOrDash(label: string, value: string | null): string {
-  return `${label}\n  ${value ?? "—"}`;
+function statusDetailBlock(
+  data: UsagePayload,
+  cycleEstimateDollars: number | null,
+): string {
+  const unit = data.includedRequests.unit ?? "requests";
+  const included = formatIncludedUsage(
+    data.includedRequests.used,
+    data.includedRequests.limit,
+    unit,
+  );
+  const lines = [
+    "── Status ─────────────────",
+    `  Included   ${included}`,
+    `  On-demand  ${formatOnDemandStatusLine(data.onDemand)}`,
+  ];
+  if (cycleEstimateDollars !== null && data.onDemand.state !== "disabled") {
+    lines.push(`  Cycle est. ~$${Math.round(cycleEstimateDollars)}`);
+  }
+  return lines.join("\n");
+}
+
+function sectionBlock(title: string, body: string): string {
+  const bar = "─".repeat(Math.max(1, 24 - title.length));
+  return `── ${title} ${bar}\n${body}`;
+}
+
+function paceDetailBody(paceLine: string | null, paceAdvice: string | null): string {
+  if (!paceLine && !paceAdvice) return "  —";
+  const lines: string[] = [];
+  if (paceLine) {
+    const paren = paceLine.match(/^(.+?)\s*\((.+)\)$/);
+    if (paren) {
+      lines.push(`  ${paren[1].trim()}`);
+      lines.push(`  (${paren[2].trim()})`);
+    } else {
+      lines.push(`  ${paceLine}`);
+    }
+  }
+  if (paceAdvice && paceAdvice !== paceLine) {
+    lines.push(`  ${paceAdvice}`);
+  }
+  return lines.join("\n");
+}
+
+function efficiencyDetailBody(
+  advice: string | null,
+  expensiveModel: string | null,
+  expensiveCost: string | null,
+  cheaperModel: string | null,
+  cheaperCost: string | null,
+): string {
+  if (!advice) return "  —";
+  if (expensiveModel && expensiveCost) {
+    const lines = [
+      `  Most expensive  ${expensiveModel}  ${expensiveCost}`,
+    ];
+    if (cheaperModel && cheaperCost) {
+      lines.push(`  Try instead     ${cheaperModel}  ${cheaperCost}`);
+    }
+    return lines.join("\n");
+  }
+  return `  ${advice}`;
 }
 
 export function buildBudgetAdvice(input: BudgetAdviceInput): BudgetAdviceReport {
@@ -87,6 +150,7 @@ export function buildBudgetAdvice(input: BudgetAdviceInput): BudgetAdviceReport 
   const paceLine = forecast
     ? forecast.tooltipLine ?? forecast.advice
     : null;
+  const paceAdviceOnly = forecast?.advice ?? null;
 
   const models = aggregateByModel(
     events,
@@ -102,29 +166,41 @@ export function buildBudgetAdvice(input: BudgetAdviceInput): BudgetAdviceReport 
   const efficiency = buildModelEfficiency(filtered);
   const efficiencyAdvice = efficiency.advice;
 
-  const tips = [poolAdvice, paceLine, efficiencyAdvice].filter(
+  // Toast priority: Pace → Pool → Efficiency (one tip only in the notification).
+  const tips = [paceLine, poolAdvice, efficiencyAdvice].filter(
     (t): t is string => Boolean(t),
   );
+  const toastTip = tips[0] ?? null;
 
   const statusLine = buildStatusLine(data, forecast?.cycleEstimateDollars ?? null);
 
-  const toastMessage =
-    tips.length > 0
-      ? `${statusLine}\n${tips.map((t) => `• ${t}`).join("\n")}`
-      : `${statusLine}\n${BUDGET_ADVICE_FALLBACK}`;
+  const toastMessage = toastTip
+    ? `${statusLine}\nTip: ${toastTip}`
+    : `${statusLine}\n${BUDGET_ADVICE_FALLBACK}`;
 
   const generated = new Date(now).toISOString();
+  const expensive = efficiency.expensive;
+  const cheaper = efficiency.cheaper;
   const detailText = [
     "Cursor Usage — Budget Advice",
     `Generated: ${generated}`,
     "",
-    sectionOrDash("Status", statusLine),
+    statusDetailBlock(data, forecast?.cycleEstimateDollars ?? null),
     "",
-    sectionOrDash("Pool", poolAdvice),
+    sectionBlock("Pool", poolAdvice ? `  ${poolAdvice}` : "  —"),
     "",
-    sectionOrDash("Pace", paceLine),
+    sectionBlock("Pace", paceDetailBody(paceLine, paceAdviceOnly)),
     "",
-    sectionOrDash("Model efficiency", efficiencyAdvice),
+    sectionBlock(
+      "Model efficiency",
+      efficiencyDetailBody(
+        efficiencyAdvice,
+        expensive?.model ?? null,
+        expensive?.costPerM != null ? formatCostPerM(expensive.costPerM) : null,
+        cheaper?.model ?? null,
+        cheaper?.costPerM != null ? formatCostPerM(cheaper.costPerM) : null,
+      ),
+    ),
     "",
     "Open Dashboard for charts and the full model table.",
   ].join("\n");
@@ -132,6 +208,7 @@ export function buildBudgetAdvice(input: BudgetAdviceInput): BudgetAdviceReport 
   return {
     statusLine,
     tips,
+    toastTip,
     toastMessage,
     detailText,
     poolAdvice,

@@ -79,11 +79,10 @@ describe("buildBudgetAdvice", () => {
     expect(report.statusLine).not.toContain("cycle est.");
   });
 
-  it("includes pool, pace, and efficiency tips in order when present", () => {
+  it("toasts only the highest-priority tip (Pace → Pool → Efficiency)", () => {
     const events = [
       onDemandEvent(now - DAY_MS, "opus", 2000, 1_000_000),
       onDemandEvent(now - DAY_MS, "sonnet", 100, 1_000_000),
-      // burn window: enough daily spend to push high pace vs $50 limit
       onDemandEvent(now, "opus", 700, 100_000),
       onDemandEvent(now - DAY_MS, "opus", 700, 100_000),
       onDemandEvent(now - 2 * DAY_MS, "opus", 700, 100_000),
@@ -117,11 +116,16 @@ describe("buildBudgetAdvice", () => {
     expect(report.poolAdvice).toBeTruthy();
     expect(report.paceLine).toBeTruthy();
     expect(report.efficiencyAdvice).toContain("Most expensive:");
-    expect(report.tips[0]).toBe(report.poolAdvice);
-    expect(report.tips).toContain(report.paceLine!);
-    expect(report.tips).toContain(report.efficiencyAdvice!);
-    expect(report.toastMessage.startsWith(report.statusLine)).toBe(true);
-    expect(report.toastMessage).toContain("• ");
+    expect(report.tips[0]).toBe(report.paceLine);
+    expect(report.toastTip).toBe(report.paceLine);
+    expect(report.toastMessage).toBe(`${report.statusLine}\nTip: ${report.paceLine}`);
+    expect(report.toastMessage).not.toContain("• ");
+    expect(report.detailText).toContain("── Status");
+    expect(report.detailText).toContain("── Pool");
+    expect(report.detailText).toContain("── Pace");
+    expect(report.detailText).toContain("── Model efficiency");
+    expect(report.detailText).toContain("Most expensive");
+    expect(report.detailText).toContain("Try instead");
   });
 
   it("uses fallback toast when no tips fire", () => {
@@ -142,10 +146,10 @@ describe("buildBudgetAdvice", () => {
       now,
     });
     expect(report.tips).toEqual([]);
+    expect(report.toastTip).toBeNull();
     expect(report.toastMessage).toContain(BUDGET_ADVICE_FALLBACK);
-    expect(report.detailText).toContain("Pool\n  —");
-    expect(report.detailText).toContain("Pace\n  —");
-    expect(report.detailText).toContain("Model efficiency\n  —");
+    expect(report.detailText).toContain("── Pool");
+    expect(report.detailText).toContain("  —");
   });
 
   it("writes detail sections with generated timestamp", () => {
@@ -160,5 +164,6 @@ describe("buildBudgetAdvice", () => {
     expect(report.detailText).toContain("Cursor Usage — Budget Advice");
     expect(report.detailText).toContain(`Generated: ${new Date(now).toISOString()}`);
     expect(report.detailText).toContain("Open Dashboard for charts");
+    expect(report.detailText).toContain("Included   $18.00/$20.00");
   });
 });
