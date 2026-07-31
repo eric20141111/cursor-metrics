@@ -126,6 +126,84 @@ export class DashboardPanel {
 
   <section class="summary-cards" id="summary-cards"></section>
 
+  <section class="guide-section collapsible-section collapsed" data-section="guide">
+    <div class="events-header">
+      <div class="section-title-row" data-toggle-section="guide">
+        <button
+          type="button"
+          class="section-toggle"
+          data-toggle-section="guide"
+          aria-expanded="false"
+          aria-controls="section-body-guide"
+          aria-label="Toggle Quota guide section"
+        >
+          <svg class="section-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div>
+          <h2>Quota guide</h2>
+          <p class="muted">Which models draw from which pool</p>
+        </div>
+      </div>
+    </div>
+    <div id="section-body-guide" class="section-body hidden">
+      <div class="table-scroll">
+        <table class="guide-table">
+          <thead>
+            <tr>
+              <th>How you use it</th>
+              <th>Typical models</th>
+              <th>Draws from</th>
+              <th>In this extension</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Auto Cost</strong></td>
+              <td>Auto routes for you (cost-optimized)</td>
+              <td><span class="pool-tag pool-cursor">Cursor Models</span></td>
+              <td>Generous included; not the API $20 bar</td>
+            </tr>
+            <tr>
+              <td><strong>Cursor first-party</strong></td>
+              <td>Composer 2.5, Cursor Grok 4.5</td>
+              <td><span class="pool-tag pool-cursor">Cursor Models</span></td>
+              <td>Same Cursor Models pool</td>
+            </tr>
+            <tr>
+              <td><strong>Auto Balance / Intelligence</strong></td>
+              <td>Auto may pick Claude / GPT / Gemini / …</td>
+              <td><span class="pool-tag pool-api">Other Models (API)</span></td>
+              <td>Billed at that model’s API rate (Teams add Cursor Token Rate)</td>
+            </tr>
+            <tr>
+              <td><strong>Manual model pick</strong></td>
+              <td>Claude Opus/Sonnet, GPT-5.x, Gemini, GLM, Kimi, …</td>
+              <td><span class="pool-tag pool-api">Other Models (API)</span></td>
+              <td>Dark segment: base API pool (e.g. $20)</td>
+            </tr>
+            <tr>
+              <td><strong>Bonus / extra included</strong></td>
+              <td>Same models after base API is exhausted, still “Included”</td>
+              <td><span class="pool-tag pool-bonus">Bonus (total included)</span></td>
+              <td>Light segment on the Included bar</td>
+            </tr>
+            <tr>
+              <td><strong>On-demand</strong></td>
+              <td>Any chargeable model after included is gone</td>
+              <td><span class="pool-tag pool-ondemand">On-Demand</span></td>
+              <td>Right-hand On-Demand card / spend</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small guide-note">
+        Pools reset each billing cycle. Plan included “Other Models” amounts: Pro $20 · Pro Plus $70 · Ultra $400.
+        Your status-bar total (API + Bonus) is the included allowance Cursor reports in usage-summary.
+        Source: <span class="mono">cursor.com/docs/models-and-pricing</span>
+      </p>
+    </div>
+  </section>
+
   <section class="controls">
     <div class="range-selector" id="range-selector" role="tablist">
       <button data-range="1d" type="button">Last 24 hours</button>
