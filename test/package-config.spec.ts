@@ -56,6 +56,14 @@ describe("package configuration", () => {
     expect(budgetConfig.minimum).toBe(0);
   });
 
+  it("exposes a Budget Advice command", () => {
+    const commands = packageJson.contributes.commands;
+    expect(commands.some((c) => c.command === "cursor-usage.budgetAdvice")).toBe(true);
+    expect(commands.find((c) => c.command === "cursor-usage.budgetAdvice")?.title).toBe(
+      "Cursor Usage: Budget Advice",
+    );
+  });
+
   it("does not depend on external sqlite binaries or native bindings", () => {
     const vscodeIgnore = readFileSync(".vscodeignore", "utf-8").split(/\r?\n/);
     const esbuildConfig = readFileSync("esbuild.config.mjs", "utf-8");

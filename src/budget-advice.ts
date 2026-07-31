@@ -22,6 +22,7 @@ export type BudgetAdviceInput = {
   excludeZeroTokenModels: boolean;
   modelBreakdownSortBy?: ModelBreakdownSortBy;
   modelBreakdownSortOrder?: SortOrder;
+  quotaAwareEventDisplay?: boolean;
   now?: number;
 };
 
@@ -95,6 +96,7 @@ export function buildBudgetAdvice(input: BudgetAdviceInput): BudgetAdviceReport 
     now,
     input.modelBreakdownSortBy ?? "tokens",
     input.modelBreakdownSortOrder ?? "desc",
+    input.quotaAwareEventDisplay ?? true,
   );
   const filtered = filterZeroTokenModels(models, input.excludeZeroTokenModels);
   const efficiency = buildModelEfficiency(filtered);

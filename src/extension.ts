@@ -11,6 +11,7 @@ import {
 } from "./cursor-api";
 import { DashboardPanel, OPEN_DASHBOARD_COMMAND } from "./dashboard-panel";
 import { buildDashboardState, type DashboardState } from "./dashboard-state";
+import { buildBudgetAdvice } from "./budget-advice";
 import {
   resolveConfiguredUsageDuration,
 } from "./duration-options";
@@ -524,6 +525,53 @@ function getDashboardState(): DashboardState {
   );
 }
 
+async function showBudgetAdvice() {
+  if (!lastData) {
+    await updateUsage();
+  }
+  if (!lastData) {
+    const action = await vscode.window.showErrorMessage(
+      lastError
+        ? `Cursor usage unavailable: ${lastError}`
+        : "Cursor usage data is not available yet.",
+      "Refresh",
+      "Show Logs",
+    );
+    if (action === "Refresh") await updateUsage();
+    else if (action === "Show Logs") outputChannel.show();
+    return;
+  }
+
+  const config = getConfig();
+  const usageDuration = resolveConfiguredUsageDuration(
+    config.usageDuration,
+    Boolean(lastData.resetsAt),
+  );
+  const report = buildBudgetAdvice({
+    data: lastData,
+    events: lastEvents ?? [],
+    monthlyBudgetDollars: config.monthlyOnDemandBudget,
+    usageDuration,
+    excludeZeroTokenModels: config.excludeZeroTokenModels,
+    modelBreakdownSortBy: config.modelBreakdownSortBy,
+    modelBreakdownSortOrder: config.modelBreakdownSortOrder,
+    quotaAwareEventDisplay: config.quotaAwareEventDisplay,
+  });
+
+  const action = await vscode.window.showInformationMessage(
+    report.toastMessage,
+    "Show details",
+    "Open Dashboard",
+  );
+  if (action === "Show details") {
+    outputChannel.clear();
+    outputChannel.appendLine(report.detailText);
+    outputChannel.show(true);
+  } else if (action === "Open Dashboard") {
+    await vscode.commands.executeCommand(OPEN_DASHBOARD_COMMAND);
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("Cursor Usage");
   log("Extension activating...");
@@ -538,6 +586,7 @@ export function activate(context: vscode.ExtensionContext) {
   const showDetailsCmd = vscode.commands.registerCommand("cursor-usage.showDetails", showDetails);
   const refreshCmd = vscode.commands.registerCommand("cursor-usage.refresh", updateUsage);
   const openDurationSettingCmd = vscode.commands.registerCommand(OPEN_DURATION_SETTING_COMMAND, openDurationSetting);
+  const budgetAdviceCmd = vscode.commands.registerCommand("cursor-usage.budgetAdvice", showBudgetAdvice);
   const openDashboardCmd = vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, () => {
     DashboardPanel.createOrShow(context, updateUsage, getDashboardState);
     DashboardPanel.currentPanel?.postState(getDashboardState());
@@ -571,7 +620,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(
-    statusBarItem, showDetailsCmd, refreshCmd, openDurationSettingCmd, openDashboardCmd,
+    statusBarItem, showDetailsCmd, refreshCmd, openDurationSettingCmd, budgetAdviceCmd, openDashboardCmd,
     configListener, docChangeListener, focusListener, themeListener,
     outputChannel,
   );

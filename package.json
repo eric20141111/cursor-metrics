@@ -31,6 +31,10 @@
       {
         "command": "cursor-usage.openDashboard",
         "title": "Cursor Usage: Open Dashboard"
+      },
+      {
+        "command": "cursor-usage.budgetAdvice",
+        "title": "Cursor Usage: Budget Advice"
       }
     ],
     "configuration": {
