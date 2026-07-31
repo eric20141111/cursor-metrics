@@ -1,4 +1,8 @@
 import type { UsagePayload } from "./cursor-api";
+import type {
+  TooltipCardRenderer,
+  TooltipCardTone,
+} from "./tooltip-card";
 
 export type PoolBreakdown = {
   hasPools: boolean;
@@ -14,8 +18,6 @@ export type PoolInsightView = {
   advice: string | null;
 };
 
-export type TooltipCardTone = "info" | "warning" | "danger";
-
 function cardBorderColor(tone: TooltipCardTone): string {
   if (tone === "danger") return "#DC2626";
   if (tone === "warning") return "#D97706";
@@ -26,7 +28,16 @@ export function formatTooltipNoticeMarkdown(
   text: string,
   icon = "💡",
   tone: TooltipCardTone = "warning",
+  renderCard?: TooltipCardRenderer,
 ): string {
+  const content = [
+    `<table width="100%" cellspacing="0" cellpadding="0">`,
+    `  <tr><td width="24" valign="top">${icon}</td><td><em>${text}</em></td></tr>`,
+    `</table>`,
+  ].join("\n");
+  if (renderCard) {
+    return `${renderCard(content, text.length > 70 ? 82 : 64, tone)}\n`;
+  }
   return [
     `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="${cardBorderColor(tone)}">`,
     `  <tr><td width="24" valign="top">${icon}</td><td><em>${text}</em></td></tr>`,
@@ -154,6 +165,7 @@ export function formatPoolInsightMarkdown(
   breakdown: PoolBreakdown,
   onDemand: UsagePayload["onDemand"],
   advice: string | null,
+  renderCard?: TooltipCardRenderer,
 ): string {
   if (!breakdown.hasPools) return "";
 
@@ -162,20 +174,31 @@ export function formatPoolInsightMarkdown(
       `  <tr><td><sub>${label}</sub></td><td align="right"><sub>${value}</sub></td></tr>`,
   );
 
+  const poolContent = [
+    `<table width="100%" cellspacing="0" cellpadding="2">`,
+    ...lines,
+    `</table>`,
+  ].join("\n");
+  const poolCard = renderCard
+    ? renderCard(poolContent, 32 + lines.length * 20, "info")
+    : [
+        `<table width="302" cellspacing="0" cellpadding="6" border="2" bordercolor="#3B82F6">`,
+        ...lines,
+        `</table>`,
+      ].join("\n");
+
   let out = [
     ``,
     `**$(layers) Pool breakdown**`,
     ``,
-    `<table width="302" cellspacing="0" cellpadding="6" border="2" bordercolor="#3B82F6">`,
-    ...lines,
-    `</table>`,
+    poolCard,
     ``,
   ].join("\n");
   if (advice) {
     out += [
       `**$(lightbulb) Recommendation**`,
       ``,
-      formatTooltipNoticeMarkdown(advice),
+      formatTooltipNoticeMarkdown(advice, "💡", "warning", renderCard),
     ].join("\n");
   }
   return out;

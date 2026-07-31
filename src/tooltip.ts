@@ -14,6 +14,7 @@ import {
   formatTooltipNoticeMarkdown,
 } from "./pool-insight";
 import { buildSpendForecast } from "./spend-forecast";
+import type { TooltipCardRenderer } from "./tooltip-card";
 
 type IncludedRequestsUsage = UsagePayload["includedRequests"];
 type OnDemandUsage = UsagePayload["onDemand"];
@@ -24,6 +25,7 @@ type ProgressBarRenderer = {
   /** Segmented API+Bonus bar when bonus pool exists; falls back to html(ratio). */
   htmlIncluded?: (ratio: number, segments: IncludedBarSegments | null) => string;
   divider: () => string;
+  card?: TooltipCardRenderer;
 };
 
 export const OPEN_DURATION_SETTING_COMMAND = "cursor-usage.openDurationSetting";
@@ -57,24 +59,28 @@ function formatOnDemandValue(onDemand: OnDemandUsage): string {
 
 function buildSummaryTable(columns: SummaryColumn[], renderProgressBar: ProgressBarRenderer): string {
   if (columns.length === 1) {
-    return [
-      `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="#64748B">`,
+    const table = [
+      `<table width="100%" cellspacing="0" cellpadding="0">`,
       `  <tr><td width="100%"><sub>${columns[0]!.label}</sub></td></tr>`,
       `  <tr><td><strong>${columns[0]!.value}</strong></td></tr>`,
       `  <tr><td>${columns[0]!.footer}</td></tr>`,
       `</table>`,
-      ``,
     ].join("\n");
+    return renderProgressBar.card
+      ? `${renderProgressBar.card(table, 86, "neutral")}\n`
+      : `${table}\n`;
   }
 
-  return [
-    `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="#64748B">`,
+  const table = [
+    `<table width="100%" cellspacing="0" cellpadding="0">`,
     `  <tr><td><sub>${columns[0]!.label}</sub></td><td width="2%" rowspan="3" valign="top">${renderProgressBar.divider()}</td><td><sub>${columns[1]!.label}</sub></td></tr>`,
     `  <tr><td><strong>${columns[0]!.value}</strong></td><td><strong>${columns[1]!.value}</strong></td></tr>`,
     `  <tr><td>${columns[0]!.footer}</td><td>${columns[1]!.footer}</td></tr>`,
     `</table>`,
-    ``,
   ].join("\n");
+  return renderProgressBar.card
+    ? `${renderProgressBar.card(table, 96, "neutral")}\n`
+    : `${table}\n`;
 }
 
 function renderIncludedFooter(
@@ -156,7 +162,12 @@ export function buildUsageOverviewMarkdown(
   );
   const breakdown = buildPoolBreakdown(data);
   const advice = buildPoolAdvice(breakdown, onDemand);
-  let md = overview + formatPoolInsightMarkdown(breakdown, onDemand, advice);
+  let md = overview + formatPoolInsightMarkdown(
+    breakdown,
+    onDemand,
+    advice,
+    renderProgressBar.card,
+  );
 
   if (onDemand.state !== "disabled") {
     const forecast = buildSpendForecast({
@@ -173,7 +184,12 @@ export function buildUsageOverviewMarkdown(
         ``,
         `**$(graph) Budget forecast**`,
         ``,
-        formatTooltipNoticeMarkdown(forecast.tooltipLine, icon, tone),
+        formatTooltipNoticeMarkdown(
+          forecast.tooltipLine,
+          icon,
+          tone,
+          renderProgressBar.card,
+        ),
       ].join("\n");
     }
   }

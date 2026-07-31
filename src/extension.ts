@@ -30,6 +30,10 @@ import {
   OPEN_DURATION_SETTING_COMMAND,
 } from "./tooltip";
 import { buildSpendForecast } from "./spend-forecast";
+import {
+  renderTooltipRoundedCard as renderTooltipRoundedCardSvg,
+  type TooltipCardTone,
+} from "./tooltip-card";
 
 let statusBarItem: vscode.StatusBarItem;
 let outputChannel: vscode.OutputChannel;
@@ -100,6 +104,14 @@ function formatResetDate(iso: string): string {
 function isLightTheme(): boolean {
   const kind = vscode.window.activeColorTheme.kind;
   return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight;
+}
+
+function renderTooltipRoundedCard(
+  contentHtml: string,
+  height: number,
+  tone: TooltipCardTone,
+): string {
+  return renderTooltipRoundedCardSvg(contentHtml, height, tone, isLightTheme());
 }
 
 type ProgressTone = "included" | "onDemand";
@@ -218,14 +230,13 @@ type OnDemandUsage = UsagePayload["onDemand"];
 
 function buildModelBreakdownTableMarkdown(
   rows: Array<{ model: string; totalTokens: number; requests: number; spendCents: number }>,
-  tableWidth: number,
 ): string {
   if (rows.length === 0) {
-    return "*No usage in this period*\n\n";
+    return `${renderTooltipRoundedCard("<em>No usage in this period</em>", 48, "neutral")}\n`;
   }
 
   const lines = [
-    `<table width="${tableWidth}" cellspacing="0" cellpadding="5" border="2" bordercolor="#64748B">`,
+    `<table width="100%" cellspacing="0" cellpadding="0">`,
     `  <tr>`,
     `    <th align="left" width="45%">Model</th>`,
     `    <th align="right" width="15%">Requests</th>`,
@@ -245,8 +256,8 @@ function buildModelBreakdownTableMarkdown(
     );
   }
 
-  lines.push(`</table>`, ``);
-  return lines.join("\n");
+  lines.push(`</table>`);
+  return `${renderTooltipRoundedCard(lines.join("\n"), 42 + rows.length * 22, "neutral")}\n`;
 }
 
 function isOnDemandVisible(onDemand: OnDemandUsage): boolean {
@@ -328,6 +339,7 @@ function updateStatusBar(data: UsagePayload) {
       html: (ratio) => progressBarHtml(ratio, barW, "onDemand"),
       htmlIncluded: (ratio, segments) => includedProgressBarHtml(ratio, segments, barW),
       divider: () => summaryDividerHtml(),
+      card: renderTooltipRoundedCard,
     },
     {
       events: lastEvents ?? [],
@@ -349,24 +361,23 @@ function updateStatusBar(data: UsagePayload) {
     );
     const filteredModels = filterZeroTokenModels(models, config.excludeZeroTokenModels);
     md += buildUsageByModelHeadingMarkdown(usageDuration);
-    const modelTableWidth = barW * 2 + 2;
-    md += buildModelBreakdownTableMarkdown(filteredModels, modelTableWidth);
+    md += buildModelBreakdownTableMarkdown(filteredModels);
   }
 
   if (data.resetsAt) {
-    md += [
-      `<table width="302" cellspacing="0" cellpadding="7" border="2" bordercolor="#64748B">`,
-      `  <tr><td>$(calendar) <em>Resets ${formatResetDate(data.resetsAt)}</em></td></tr>`,
-      `</table>`,
-      ``,
-    ].join("\n");
+    md += `${renderTooltipRoundedCard(
+      `📅 <em>Resets ${formatResetDate(data.resetsAt)}</em>`,
+      48,
+      "neutral",
+    )}\n`;
   }
 
+  const actionBackground = isLightTheme() ? "#DBEAFE" : "#1E3A5F";
   md += [
-    `<table width="302" cellspacing="0" cellpadding="7" border="2" bordercolor="#3B82F6">`,
-    `  <tr><td>$(dashboard) <a href="command:${OPEN_DASHBOARD_COMMAND}">Open Dashboard</a> &nbsp;·&nbsp; $(refresh) <a href="command:cursor-usage.refresh">Refresh</a></td></tr>`,
-    `</table>`,
-  ].join("\n");
+    `<span style="background-color:${actionBackground};border-radius:6px;">&nbsp;$(dashboard) <a href="command:${OPEN_DASHBOARD_COMMAND}">Open Dashboard</a>&nbsp;</span>`,
+    `&nbsp;`,
+    `<span style="background-color:${actionBackground};border-radius:6px;">&nbsp;$(refresh) <a href="command:cursor-usage.refresh">Refresh</a>&nbsp;</span>`,
+  ].join("");
 
   tooltip.appendMarkdown(md);
   statusBarItem.tooltip = tooltip;
