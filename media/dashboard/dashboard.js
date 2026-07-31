@@ -16,6 +16,7 @@
     breakdownBody: document.querySelector("#breakdown-table tbody"),
     breakdownHead: document.querySelector("#breakdown-table thead"),
     breakdownRangeLabel: document.getElementById("breakdown-range-label"),
+    modelEfficiencyAdvice: document.getElementById("model-efficiency-advice"),
     pagination: document.getElementById("pagination"),
     refreshBtn: document.getElementById("refresh-btn"),
     exportBtn: document.getElementById("export-csv"),
@@ -690,6 +691,64 @@
     return "Current Billing Cycle";
   }
 
+  // SYNC: src/model-efficiency.ts — keep thresholds/formula/advice identical
+  const MIN_SPEND_CENTS = 50;
+  const COST_RATIO = 2;
+
+  function costPerMillionTokens(spendCents, totalTokens) {
+    if (totalTokens <= 0) return null;
+    return (spendCents * 10000) / totalTokens;
+  }
+
+  function formatCostPerM(value) {
+    if (value === null || value === undefined) return "—";
+    if (value >= 100) return "$" + Math.round(value) + "/M";
+    return "$" + (Math.round(value * 10) / 10) + "/M";
+  }
+
+  function isBetterCheaperCandidate(candidate, current) {
+    if (candidate.totalTokens !== current.totalTokens) {
+      return candidate.totalTokens > current.totalTokens;
+    }
+    if (candidate.costPerM !== current.costPerM) {
+      return candidate.costPerM < current.costPerM;
+    }
+    return String(candidate.model).localeCompare(String(current.model)) < 0;
+  }
+
+  function buildModelEfficiency(rows) {
+    const annotated = rows.map((r) => ({
+      ...r,
+      costPerM: costPerMillionTokens(r.spendCents, r.totalTokens),
+    }));
+
+    let expensive = null;
+    for (const r of annotated) {
+      if (r.costPerM === null || r.spendCents < MIN_SPEND_CENTS) continue;
+      if (!expensive || r.costPerM > expensive.costPerM) expensive = r;
+    }
+
+    let cheaper = null;
+    if (expensive && expensive.costPerM !== null) {
+      const threshold = expensive.costPerM / COST_RATIO;
+      for (const r of annotated) {
+        if (r === expensive || r.costPerM === null) continue;
+        if (r.costPerM > threshold) continue;
+        if (!cheaper || isBetterCheaperCandidate(r, cheaper)) cheaper = r;
+      }
+    }
+
+    let advice = null;
+    if (expensive && expensive.costPerM !== null) {
+      const xCost = formatCostPerM(expensive.costPerM);
+      advice = cheaper && cheaper.costPerM !== null
+        ? "Most expensive: " + expensive.model + " · " + xCost + " · try " + cheaper.model + " (" + formatCostPerM(cheaper.costPerM) + ")"
+        : "Most expensive: " + expensive.model + " · " + xCost;
+    }
+
+    return { rows: annotated, expensive, cheaper, advice };
+  }
+
   function aggregateModelBreakdown() {
     if (!state) return [];
     const cutoff = getDurationCutoff(local.range, state.resetsAt, state.generatedAt);
@@ -704,11 +763,18 @@
       entry.spendCents += Math.round(eventSpendDollars(e) * 100);
       map.set(e.model, entry);
     }
-    const rows = Array.from(map.values());
+    const rows = Array.from(map.values()).map((r) => ({
+      ...r,
+      costPerM: costPerMillionTokens(r.spendCents, r.totalTokens),
+    }));
     const dir = local.breakdownSortOrder === "asc" ? 1 : -1;
     const key = local.breakdownSortKey;
     rows.sort((a, b) => {
-      const av = a[key], bv = b[key];
+      const av = a[key];
+      const bv = b[key];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
       return String(av).localeCompare(String(bv)) * dir;
     });
@@ -718,6 +784,17 @@
   function renderBreakdown() {
     if (ui.breakdownRangeLabel) ui.breakdownRangeLabel.textContent = "(" + rangeLabel() + ")";
     const rows = aggregateModelBreakdown();
+    const efficiency = buildModelEfficiency(rows);
+
+    if (ui.modelEfficiencyAdvice) {
+      if (efficiency.advice) {
+        ui.modelEfficiencyAdvice.textContent = efficiency.advice;
+        ui.modelEfficiencyAdvice.classList.remove("hidden");
+      } else {
+        ui.modelEfficiencyAdvice.textContent = "";
+        ui.modelEfficiencyAdvice.classList.add("hidden");
+      }
+    }
 
     if (ui.breakdownHead) {
       ui.breakdownHead.querySelectorAll("th.sortable").forEach((th) => {
@@ -729,7 +806,7 @@
     }
 
     if (rows.length === 0) {
-      ui.breakdownBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:24px;" class="muted">No usage in this range</td></tr>';
+      ui.breakdownBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px;" class="muted">No usage in this range</td></tr>';
       return;
     }
     ui.breakdownBody.innerHTML = rows.map((r) => {
@@ -740,6 +817,7 @@
         '<td class="num">' + formatRequests(r.requests) + '</td>' +
         '<td class="num">' + formatTokens(r.totalTokens) + '</td>' +
         '<td class="num">' + formatDollars(r.spendCents / 100) + '</td>' +
+        '<td class="num">' + escapeHtml(formatCostPerM(r.costPerM)) + '</td>' +
       '</tr>';
     }).join("");
   }

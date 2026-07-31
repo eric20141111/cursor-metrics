@@ -274,6 +274,7 @@ export class DashboardPanel {
       <span class="muted small" id="breakdown-range-label"></span>
     </div>
     <div id="section-body-breakdown" class="section-body">
+      <div id="model-efficiency-advice" class="model-efficiency-advice hidden"></div>
       <div class="table-scroll">
         <table id="breakdown-table">
           <thead>
@@ -282,6 +283,7 @@ export class DashboardPanel {
               <th data-sort="requests" class="sortable num">Requests</th>
               <th data-sort="totalTokens" class="sortable num">Tokens</th>
               <th data-sort="spendCents" class="sortable num">Spend</th>
+              <th data-sort="costPerM" class="sortable num">$/M</th>
             </tr>
           </thead>
           <tbody></tbody>

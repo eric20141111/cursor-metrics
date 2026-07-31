@@ -235,6 +235,18 @@ label select { color: var(--input-fg); }
   color: var(--muted);
 }
 
+.model-efficiency-advice {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--vscode-editorWarning-foreground, #d97706);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.model-efficiency-advice.hidden {
+  display: none;
+}
+
 .forecast-card .forecast-title {
   font-size: 12px;
   font-weight: 600;
