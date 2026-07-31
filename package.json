@@ -1,6 +1,6 @@
 {
   "name": "cursor-usage",
-  "version": "0.5.18",
+  "version": "0.5.19",
   "repository": {
     "type": "git",
     "url": "https://github.com/wrick17/cursor-metrics"
@@ -13,7 +13,8 @@
     "typescript": "^5.7.0"
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:cursor-usage.budgetAdvice"
   ],
   "categories": [
     "Other"
@@ -34,7 +35,8 @@
       },
       {
         "command": "cursor-usage.budgetAdvice",
-        "title": "Cursor Usage: Budget Advice"
+        "title": "Budget Advice",
+        "category": "Cursor Usage"
       }
     ],
     "configuration": {

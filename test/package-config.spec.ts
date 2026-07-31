@@ -58,10 +58,10 @@ describe("package configuration", () => {
 
   it("exposes a Budget Advice command", () => {
     const commands = packageJson.contributes.commands;
-    expect(commands.some((c) => c.command === "cursor-usage.budgetAdvice")).toBe(true);
-    expect(commands.find((c) => c.command === "cursor-usage.budgetAdvice")?.title).toBe(
-      "Cursor Usage: Budget Advice",
-    );
+    const advice = commands.find((c) => c.command === "cursor-usage.budgetAdvice");
+    expect(advice).toBeDefined();
+    expect(advice?.title).toBe("Budget Advice");
+    expect(advice?.category).toBe("Cursor Usage");
   });
 
   it("does not depend on external sqlite binaries or native bindings", () => {
