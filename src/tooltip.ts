@@ -1,4 +1,4 @@
-import type { UsagePayload } from "./cursor-api";
+import type { UsageEvent, UsagePayload } from "./cursor-api";
 import { getDurationLabel } from "./duration-options";
 import {
   buildIncludedBarModel,
@@ -11,7 +11,9 @@ import {
   buildPoolAdvice,
   buildPoolBreakdown,
   formatPoolInsightMarkdown,
+  formatTooltipNoticeMarkdown,
 } from "./pool-insight";
+import { buildSpendForecast } from "./spend-forecast";
 
 type IncludedRequestsUsage = UsagePayload["includedRequests"];
 type OnDemandUsage = UsagePayload["onDemand"];
@@ -136,9 +138,16 @@ function buildSummaryColumns(
   ];
 }
 
+export type ForecastOverviewOptions = {
+  events?: UsageEvent[];
+  monthlyBudgetDollars?: number | null;
+  now?: number;
+};
+
 export function buildUsageOverviewMarkdown(
-  data: Pick<UsagePayload, "includedRequests" | "onDemand">,
+  data: Pick<UsagePayload, "includedRequests" | "onDemand"> & { resetsAt?: string | null },
   renderProgressBar: ProgressBarRenderer,
+  forecastOptions?: ForecastOverviewOptions,
 ): string {
   const { includedRequests, onDemand } = data;
   const overview = buildSummaryTable(
@@ -147,9 +156,32 @@ export function buildUsageOverviewMarkdown(
   );
   const breakdown = buildPoolBreakdown(data);
   const advice = buildPoolAdvice(breakdown, onDemand);
-  return overview + formatPoolInsightMarkdown(breakdown, onDemand, advice);
+  let md = overview + formatPoolInsightMarkdown(breakdown, onDemand, advice);
+
+  if (onDemand.state !== "disabled") {
+    const forecast = buildSpendForecast({
+      onDemand,
+      resetsAt: data.resetsAt ?? null,
+      events: forecastOptions?.events ?? [],
+      monthlyBudgetDollars: forecastOptions?.monthlyBudgetDollars ?? null,
+      now: forecastOptions?.now,
+    });
+    if (forecast.tooltipLine) {
+      const icon = forecast.level === "high" ? "⚠️" : "📈";
+      md += [
+        ``,
+        `<hr>`,
+        ``,
+        `**$(graph) Budget forecast**`,
+        ``,
+        formatTooltipNoticeMarkdown(forecast.tooltipLine, icon),
+      ].join("\n");
+    }
+  }
+
+  return md;
 }
 
 export function buildUsageByModelHeadingMarkdown(duration: UsageDuration): string {
-  return `**Usage by Model** *(${getDurationLabel(duration)})* &nbsp;[Change](command:${OPEN_DURATION_SETTING_COMMAND})\n\n`;
+  return `**$(list-unordered) Usage by Model** *(${getDurationLabel(duration)})* &nbsp;[Change](command:${OPEN_DURATION_SETTING_COMMAND})\n\n`;
 }

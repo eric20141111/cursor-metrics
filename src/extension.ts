@@ -29,6 +29,7 @@ import {
   buildUsageOverviewMarkdown,
   OPEN_DURATION_SETTING_COMMAND,
 } from "./tooltip";
+import { buildSpendForecast } from "./spend-forecast";
 
 let statusBarItem: vscode.StatusBarItem;
 let outputChannel: vscode.OutputChannel;
@@ -59,6 +60,7 @@ function getConfig() {
     modelBreakdownSortOrder,
     excludeZeroTokenModels: cfg.get<boolean>("excludeZeroTokenModels", false),
     quotaAwareEventDisplay: cfg.get<boolean>("quotaAwareEventDisplay", true),
+    monthlyOnDemandBudget: cfg.get<number | null>("monthlyOnDemandBudget", null),
   };
 }
 
@@ -100,7 +102,13 @@ function isLightTheme(): boolean {
   return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight;
 }
 
-function progressBarDataUri(ratio: number, barWidth = 220): string {
+type ProgressTone = "included" | "onDemand";
+
+function progressBarDataUri(
+  ratio: number,
+  barWidth = 220,
+  tone: ProgressTone = "included",
+): string {
   const clamped = Math.min(Math.max(ratio, 0), 1);
   const width = barWidth;
   const height = 10;
@@ -109,7 +117,10 @@ function progressBarDataUri(ratio: number, barWidth = 220): string {
 
   const light = isLightTheme();
   const trackColor = light ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.18)";
-  const fillColor = light ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.82)";
+  const fillColor =
+    tone === "onDemand"
+      ? (light ? "#D97706" : "#F59E0B")
+      : (light ? "#2563EB" : "#60A5FA");
 
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`;
   svg += `<rect width="${width}" height="${height}" rx="${r}" ry="${r}" fill="${trackColor}"/>`;
@@ -128,9 +139,9 @@ function segmentedProgressBarDataUri(segments: IncludedBarSegments, barWidth = 2
   const r = height / 2;
   const light = isLightTheme();
   const trackColor = light ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.18)";
-  const apiFill = light ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.88)";
-  const bonusFill = light ? "rgba(0,0,0,0.32)" : "rgba(255,255,255,0.42)";
-  const boundaryColor = light ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.7)";
+  const apiFill = light ? "#2563EB" : "#60A5FA";
+  const bonusFill = light ? "#7C3AED" : "#A78BFA";
+  const boundaryColor = light ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.9)";
 
   const apiFilledW = Math.round(Math.min(Math.max(segments.apiFilled, 0), 1) * width);
   const bonusStart = Math.round(Math.min(Math.max(segments.apiShare, 0), 1) * width);
@@ -159,8 +170,12 @@ function progressBarMarkdown(ratio: number, barWidth = 220): string {
   return `![](${progressBarDataUri(ratio, barWidth)})`;
 }
 
-function progressBarHtml(ratio: number, barWidth = 220): string {
-  return `<img src="${progressBarDataUri(ratio, barWidth)}" width="${barWidth}" height="10" />`;
+function progressBarHtml(
+  ratio: number,
+  barWidth = 220,
+  tone: ProgressTone = "included",
+): string {
+  return `<img src="${progressBarDataUri(ratio, barWidth, tone)}" width="${barWidth}" height="10" />`;
 }
 
 function includedProgressBarHtml(
@@ -273,16 +288,28 @@ function updateStatusBar(data: UsagePayload) {
   const premiumExhausted = includedRequests.used >= includedRequests.limit;
   const onDemandVisible = isOnDemandVisible(onDemand);
 
+  const config = getConfig();
+  const forecast =
+    onDemand.state === "disabled"
+      ? null
+      : buildSpendForecast({
+          onDemand,
+          resetsAt: data.resetsAt,
+          events: lastEvents ?? [],
+          monthlyBudgetDollars: config.monthlyOnDemandBudget,
+        });
+  const riskMark = forecast?.statusMark ? ` ${forecast.statusMark}` : "";
+
   if (minimalMode) {
     if (premiumExhausted && onDemandVisible) {
-      statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}`;
+      statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}${riskMark}`;
     } else {
-      statusBarItem.text = `$(pulse) ${includedText}`;
+      statusBarItem.text = `$(pulse) ${includedText}${riskMark}`;
     }
   } else {
     statusBarItem.text = onDemandVisible
-      ? `$(pulse) ${includedText} | ${formatOnDemandStatus(onDemand)}`
-      : `$(pulse) ${includedText}`;
+      ? `$(pulse) ${includedText} | ${formatOnDemandStatus(onDemand)}${riskMark}`
+      : `$(pulse) ${includedText}${riskMark}`;
   }
 
   const tooltip = new vscode.MarkdownString();
@@ -295,18 +322,21 @@ function updateStatusBar(data: UsagePayload) {
   const barW = 150;
   let md = `### $(pulse) Cursor Usage\n\n`;
   md += buildUsageOverviewMarkdown(
-    { includedRequests, onDemand },
+    { includedRequests, onDemand, resetsAt: data.resetsAt },
     {
       markdown: (ratio) => progressBarMarkdown(ratio, barW),
-      html: (ratio) => progressBarHtml(ratio, barW),
+      html: (ratio) => progressBarHtml(ratio, barW, "onDemand"),
       htmlIncluded: (ratio, segments) => includedProgressBarHtml(ratio, segments, barW),
       divider: () => summaryDividerHtml(),
+    },
+    {
+      events: lastEvents ?? [],
+      monthlyBudgetDollars: config.monthlyOnDemandBudget,
     },
   );
   md += `\n`;
 
   if (lastEvents && lastEvents.length > 0) {
-    const config = getConfig();
     const usageDuration: UsageDuration = resolveConfiguredUsageDuration(config.usageDuration, Boolean(data.resetsAt));
     const models = aggregateByModel(
       lastEvents,
@@ -326,11 +356,11 @@ function updateStatusBar(data: UsagePayload) {
 
   if (data.resetsAt) {
     md += `<hr>\n\n`;
-    md += `*Resets ${formatResetDate(data.resetsAt)}*\n\n`;
+    md += `$(calendar) *Resets ${formatResetDate(data.resetsAt)}*\n\n`;
   }
 
   md += `<hr>\n\n`;
-  md += `[Open Dashboard](command:${OPEN_DASHBOARD_COMMAND}) | [Refresh](command:cursor-usage.refresh)`;
+  md += `$(dashboard) [Open Dashboard](command:${OPEN_DASHBOARD_COMMAND}) &nbsp;·&nbsp; $(refresh) [Refresh](command:cursor-usage.refresh)`;
 
   tooltip.appendMarkdown(md);
   statusBarItem.tooltip = tooltip;
@@ -448,6 +478,7 @@ async function openDurationSetting() {
 }
 
 function getDashboardState(): DashboardState {
+  const config = getConfig();
   return buildDashboardState(
     lastData,
     lastEvents ?? [],
@@ -455,7 +486,8 @@ function getDashboardState(): DashboardState {
     isTeamMemberCached(),
     lastError,
     Date.now(),
-    getConfig().quotaAwareEventDisplay,
+    config.quotaAwareEventDisplay,
+    config.monthlyOnDemandBudget,
   );
 }
 

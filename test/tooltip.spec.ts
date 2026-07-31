@@ -48,7 +48,7 @@ describe("buildUsageOverviewMarkdown", () => {
     expect(markdown).toContain("<strong>$66.89</strong>");
     expect(markdown).toContain("<bar:1.00>");
     expect(markdown).toContain("<tr><td><bar:1.00></td><td><sub>Unlimited</sub></td></tr>");
-    expect(markdown.match(/<table/g)?.length).toBe(1);
+    expect(markdown.match(/<table/g)?.length).toBe(2);
     expect(markdown).not.toContain("width=\"49%\"");
     expect(markdown).not.toContain("100% used");
     expect(markdown).not.toContain("No spend cap");
@@ -76,6 +76,7 @@ describe("buildUsageOverviewMarkdown", () => {
     );
     expect(markdown).toContain("API pool");
     expect(markdown).toContain("Prefer Auto / Cursor Models");
+    expect(markdown.match(/<table width="302" cellspacing="0" cellpadding="6" border="1">/g)?.length).toBe(2);
   });
 
   it("renders a single-column balanced summary when on-demand is hidden", () => {
@@ -95,13 +96,41 @@ describe("buildUsageOverviewMarkdown", () => {
     expect(markdown).not.toContain("8% used");
     expect(markdown).not.toContain("On-demand");
   });
+
+  it("appends a high-pace forecast line when cycle estimate is over baseline", () => {
+    const now = Date.UTC(2026, 6, 15, 12, 0, 0);
+    const events = Array.from({ length: 7 }, (_, i) => ({
+      timestamp: Date.UTC(2026, 6, 9 + i, 3, 0, 0),
+      model: "gpt-5",
+      kind: "On-Demand" as const,
+      totalTokens: 10,
+      requests: 1,
+      spendCents: 1000,
+      maxMode: false,
+    }));
+    const markdown = buildUsageOverviewMarkdown(
+      {
+        includedRequests: { used: 100, limit: 500, unit: "requests" },
+        onDemand: { state: "limited", spendDollars: 20, limitDollars: 50 },
+        resetsAt: new Date(Date.UTC(2026, 6, 22)).toISOString(),
+      },
+      progressBar,
+      { events, monthlyBudgetDollars: null, now },
+    );
+
+    expect(markdown).toContain("High pace");
+    expect(markdown).toContain("cycle estimate");
+    expect(markdown).toContain("**$(graph) Budget forecast**");
+    expect(markdown).toContain("⚠️");
+    expect(markdown.match(/<table width="302" cellspacing="0" cellpadding="6" border="1">/g)?.length).toBe(1);
+  });
 });
 
 describe("buildUsageByModelHeadingMarkdown", () => {
   it("includes a Change link that routes to the duration setting", () => {
     const markdown = buildUsageByModelHeadingMarkdown("billingCycle");
 
-    expect(markdown).toContain("**Usage by Model** *(Current Billing Cycle)*");
+    expect(markdown).toContain("**$(list-unordered) Usage by Model** *(Current Billing Cycle)*");
     expect(markdown).toContain("[Change](command:cursor-usage.openDurationSetting)");
   });
 });

@@ -14,6 +14,15 @@ export type PoolInsightView = {
   advice: string | null;
 };
 
+export function formatTooltipNoticeMarkdown(text: string, icon = "💡"): string {
+  return [
+    `<table width="302" cellspacing="0" cellpadding="6" border="1">`,
+    `  <tr><td width="24" valign="top">${icon}</td><td><em>${text}</em></td></tr>`,
+    `</table>`,
+    ``,
+  ].join("\n");
+}
+
 function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -137,12 +146,29 @@ export function formatPoolInsightMarkdown(
   if (!breakdown.hasPools) return "";
 
   const lines = buildPoolInsightLines(breakdown, onDemand).map(
-    ({ label, value }) => `${label} — ${value}`,
+    ({ label, value }) =>
+      `  <tr><td><sub>${label}</sub></td><td align="right"><sub>${value}</sub></td></tr>`,
   );
 
-  let out = `\n<sub>${lines.join("<br/>")}</sub>\n`;
+  let out = [
+    ``,
+    `<hr>`,
+    ``,
+    `**$(layers) Pool breakdown**`,
+    ``,
+    `<table width="302" cellspacing="0" cellpadding="2">`,
+    ...lines,
+    `</table>`,
+    ``,
+  ].join("\n");
   if (advice) {
-    out += `\n*${advice}*\n`;
+    out += [
+      `<hr>`,
+      ``,
+      `**$(lightbulb) Recommendation**`,
+      ``,
+      formatTooltipNoticeMarkdown(advice),
+    ].join("\n");
   }
   return out;
 }
