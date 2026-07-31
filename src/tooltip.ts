@@ -58,7 +58,7 @@ function formatOnDemandValue(onDemand: OnDemandUsage): string {
 function buildSummaryTable(columns: SummaryColumn[], renderProgressBar: ProgressBarRenderer): string {
   if (columns.length === 1) {
     return [
-      `<table width="100%" cellspacing="0" cellpadding="0">`,
+      `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="#64748B">`,
       `  <tr><td width="100%"><sub>${columns[0]!.label}</sub></td></tr>`,
       `  <tr><td><strong>${columns[0]!.value}</strong></td></tr>`,
       `  <tr><td>${columns[0]!.footer}</td></tr>`,
@@ -68,7 +68,7 @@ function buildSummaryTable(columns: SummaryColumn[], renderProgressBar: Progress
   }
 
   return [
-    `<table width="100%" cellspacing="0" cellpadding="0">`,
+    `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="#64748B">`,
     `  <tr><td><sub>${columns[0]!.label}</sub></td><td width="2%" rowspan="3" valign="top">${renderProgressBar.divider()}</td><td><sub>${columns[1]!.label}</sub></td></tr>`,
     `  <tr><td><strong>${columns[0]!.value}</strong></td><td><strong>${columns[1]!.value}</strong></td></tr>`,
     `  <tr><td>${columns[0]!.footer}</td><td>${columns[1]!.footer}</td></tr>`,
@@ -168,13 +168,12 @@ export function buildUsageOverviewMarkdown(
     });
     if (forecast.tooltipLine) {
       const icon = forecast.level === "high" ? "⚠️" : "📈";
+      const tone = forecast.level === "high" ? "danger" : "info";
       md += [
-        ``,
-        `<hr>`,
         ``,
         `**$(graph) Budget forecast**`,
         ``,
-        formatTooltipNoticeMarkdown(forecast.tooltipLine, icon),
+        formatTooltipNoticeMarkdown(forecast.tooltipLine, icon, tone),
       ].join("\n");
     }
   }

@@ -14,9 +14,21 @@ export type PoolInsightView = {
   advice: string | null;
 };
 
-export function formatTooltipNoticeMarkdown(text: string, icon = "💡"): string {
+export type TooltipCardTone = "info" | "warning" | "danger";
+
+function cardBorderColor(tone: TooltipCardTone): string {
+  if (tone === "danger") return "#DC2626";
+  if (tone === "warning") return "#D97706";
+  return "#3B82F6";
+}
+
+export function formatTooltipNoticeMarkdown(
+  text: string,
+  icon = "💡",
+  tone: TooltipCardTone = "warning",
+): string {
   return [
-    `<table width="302" cellspacing="0" cellpadding="6" border="1">`,
+    `<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="${cardBorderColor(tone)}">`,
     `  <tr><td width="24" valign="top">${icon}</td><td><em>${text}</em></td></tr>`,
     `</table>`,
     ``,
@@ -152,19 +164,15 @@ export function formatPoolInsightMarkdown(
 
   let out = [
     ``,
-    `<hr>`,
-    ``,
     `**$(layers) Pool breakdown**`,
     ``,
-    `<table width="302" cellspacing="0" cellpadding="2">`,
+    `<table width="302" cellspacing="0" cellpadding="6" border="2" bordercolor="#3B82F6">`,
     ...lines,
     `</table>`,
     ``,
   ].join("\n");
   if (advice) {
     out += [
-      `<hr>`,
-      ``,
       `**$(lightbulb) Recommendation**`,
       ``,
       formatTooltipNoticeMarkdown(advice),

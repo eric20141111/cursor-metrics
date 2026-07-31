@@ -196,6 +196,8 @@ describe("formatPoolInsightMarkdown", () => {
     expect(md).toContain("Prefer Auto / Cursor Models");
     expect(md).toContain("**$(layers) Pool breakdown**");
     expect(md).toContain("**$(lightbulb) Recommendation**");
-    expect(md).toContain('<table width="302" cellspacing="0" cellpadding="6" border="1">');
+    expect(md).toContain(
+      '<table width="302" cellspacing="0" cellpadding="8" border="2" bordercolor="#D97706">',
+    );
   });
 });

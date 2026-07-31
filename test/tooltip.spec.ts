@@ -76,7 +76,7 @@ describe("buildUsageOverviewMarkdown", () => {
     );
     expect(markdown).toContain("API pool");
     expect(markdown).toContain("Prefer Auto / Cursor Models");
-    expect(markdown.match(/<table width="302" cellspacing="0" cellpadding="6" border="1">/g)?.length).toBe(2);
+    expect(markdown.match(/<table width="302" cellspacing="0" cellpadding="8" border="2"/g)?.length).toBe(3);
   });
 
   it("renders a single-column balanced summary when on-demand is hidden", () => {
@@ -88,7 +88,7 @@ describe("buildUsageOverviewMarkdown", () => {
       progressBar,
     );
 
-    expect(markdown).toContain("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">");
+    expect(markdown).toContain('<table width="302" cellspacing="0" cellpadding="8" border="2"');
     expect(markdown).toContain("<td width=\"100%\"><sub>Included</sub></td>");
     expect(markdown).toContain("<strong>42 / 500</strong>");
     expect(markdown).toContain("<bar:0.08>");
@@ -122,7 +122,7 @@ describe("buildUsageOverviewMarkdown", () => {
     expect(markdown).toContain("cycle estimate");
     expect(markdown).toContain("**$(graph) Budget forecast**");
     expect(markdown).toContain("⚠️");
-    expect(markdown.match(/<table width="302" cellspacing="0" cellpadding="6" border="1">/g)?.length).toBe(1);
+    expect(markdown.match(/<table width="302" cellspacing="0" cellpadding="8" border="2"/g)?.length).toBe(2);
   });
 });
 

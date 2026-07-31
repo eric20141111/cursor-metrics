@@ -225,7 +225,7 @@ function buildModelBreakdownTableMarkdown(
   }
 
   const lines = [
-    `<table width="${tableWidth}" cellspacing="0" cellpadding="0">`,
+    `<table width="${tableWidth}" cellspacing="0" cellpadding="5" border="2" bordercolor="#64748B">`,
     `  <tr>`,
     `    <th align="left" width="45%">Model</th>`,
     `    <th align="right" width="15%">Requests</th>`,
@@ -348,19 +348,25 @@ function updateStatusBar(data: UsagePayload) {
       config.modelBreakdownSortOrder,
     );
     const filteredModels = filterZeroTokenModels(models, config.excludeZeroTokenModels);
-    md += `<hr>\n\n`;
     md += buildUsageByModelHeadingMarkdown(usageDuration);
     const modelTableWidth = barW * 2 + 2;
     md += buildModelBreakdownTableMarkdown(filteredModels, modelTableWidth);
   }
 
   if (data.resetsAt) {
-    md += `<hr>\n\n`;
-    md += `$(calendar) *Resets ${formatResetDate(data.resetsAt)}*\n\n`;
+    md += [
+      `<table width="302" cellspacing="0" cellpadding="7" border="2" bordercolor="#64748B">`,
+      `  <tr><td>$(calendar) <em>Resets ${formatResetDate(data.resetsAt)}</em></td></tr>`,
+      `</table>`,
+      ``,
+    ].join("\n");
   }
 
-  md += `<hr>\n\n`;
-  md += `$(dashboard) [Open Dashboard](command:${OPEN_DASHBOARD_COMMAND}) &nbsp;·&nbsp; $(refresh) [Refresh](command:cursor-usage.refresh)`;
+  md += [
+    `<table width="302" cellspacing="0" cellpadding="7" border="2" bordercolor="#3B82F6">`,
+    `  <tr><td>$(dashboard) <a href="command:${OPEN_DASHBOARD_COMMAND}">Open Dashboard</a> &nbsp;·&nbsp; $(refresh) <a href="command:cursor-usage.refresh">Refresh</a></td></tr>`,
+    `</table>`,
+  ].join("\n");
 
   tooltip.appendMarkdown(md);
   statusBarItem.tooltip = tooltip;
