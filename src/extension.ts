@@ -14,7 +14,8 @@ import { buildDashboardState, type DashboardState } from "./dashboard-state";
 import {
   resolveConfiguredUsageDuration,
 } from "./duration-options";
-import { formatTokens } from "./format";
+import { formatTokens, formatIncludedUsage } from "./format";
+import type { IncludedBarSegments } from "./format";
 import {
   aggregateByModel,
   filterZeroTokenModels,
@@ -121,12 +122,56 @@ function progressBarDataUri(ratio: number, barWidth = 220): string {
   return `data:image/svg+xml;base64,${encoded}`;
 }
 
+function segmentedProgressBarDataUri(segments: IncludedBarSegments, barWidth = 220): string {
+  const width = barWidth;
+  const height = 10;
+  const r = height / 2;
+  const light = isLightTheme();
+  const trackColor = light ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.18)";
+  const apiFill = light ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.88)";
+  const bonusFill = light ? "rgba(0,0,0,0.32)" : "rgba(255,255,255,0.42)";
+  const boundaryColor = light ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.7)";
+
+  const apiFilledW = Math.round(Math.min(Math.max(segments.apiFilled, 0), 1) * width);
+  const bonusStart = Math.round(Math.min(Math.max(segments.apiShare, 0), 1) * width);
+  const bonusFilledW = Math.round(Math.min(Math.max(segments.bonusFilled, 0), 1) * width);
+  const boundaryX = Math.min(Math.max(bonusStart, 0), width);
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`;
+  svg += `<rect width="${width}" height="${height}" rx="${r}" ry="${r}" fill="${trackColor}"/>`;
+  if (apiFilledW > 0) {
+    svg += `<rect width="${apiFilledW}" height="${height}" rx="${r}" ry="${r}" fill="${apiFill}"/>`;
+  }
+  if (bonusFilledW > 0) {
+    // Square the inner corners so the two fills meet cleanly at the boundary.
+    svg += `<rect x="${bonusStart}" width="${bonusFilledW}" height="${height}" fill="${bonusFill}"/>`;
+  }
+  if (boundaryX > 0 && boundaryX < width) {
+    svg += `<rect x="${boundaryX - 0.5}" y="0" width="1" height="${height}" fill="${boundaryColor}"/>`;
+  }
+  svg += `</svg>`;
+
+  const encoded = Buffer.from(svg).toString("base64");
+  return `data:image/svg+xml;base64,${encoded}`;
+}
+
 function progressBarMarkdown(ratio: number, barWidth = 220): string {
   return `![](${progressBarDataUri(ratio, barWidth)})`;
 }
 
 function progressBarHtml(ratio: number, barWidth = 220): string {
   return `<img src="${progressBarDataUri(ratio, barWidth)}" width="${barWidth}" height="10" />`;
+}
+
+function includedProgressBarHtml(
+  ratio: number,
+  segments: IncludedBarSegments | null,
+  barWidth = 220,
+): string {
+  if (!segments) {
+    return progressBarHtml(ratio, barWidth);
+  }
+  return `<img src="${segmentedProgressBarDataUri(segments, barWidth)}" width="${barWidth}" height="10" />`;
 }
 
 function escapeHtml(value: string): string {
@@ -218,6 +263,12 @@ function formatOnDemandTooltipCell(onDemand: OnDemandUsage): string {
 function updateStatusBar(data: UsagePayload) {
   const { includedRequests, onDemand } = data;
   const { minimalMode } = getConfig();
+  const includedUnit = includedRequests.unit ?? "requests";
+  const includedText = formatIncludedUsage(
+    includedRequests.used,
+    includedRequests.limit,
+    includedUnit,
+  );
 
   const premiumExhausted = includedRequests.used >= includedRequests.limit;
   const onDemandVisible = isOnDemandVisible(onDemand);
@@ -226,10 +277,9 @@ function updateStatusBar(data: UsagePayload) {
     if (premiumExhausted && onDemandVisible) {
       statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}`;
     } else {
-      statusBarItem.text = `$(pulse) ${includedRequests.used}/${includedRequests.limit}`;
+      statusBarItem.text = `$(pulse) ${includedText}`;
     }
   } else {
-    const includedText = `${includedRequests.used}/${includedRequests.limit}`;
     statusBarItem.text = onDemandVisible
       ? `$(pulse) ${includedText} | ${formatOnDemandStatus(onDemand)}`
       : `$(pulse) ${includedText}`;
@@ -249,6 +299,7 @@ function updateStatusBar(data: UsagePayload) {
     {
       markdown: (ratio) => progressBarMarkdown(ratio, barW),
       html: (ratio) => progressBarHtml(ratio, barW),
+      htmlIncluded: (ratio, segments) => includedProgressBarHtml(ratio, segments, barW),
       divider: () => summaryDividerHtml(),
     },
   );
@@ -363,12 +414,14 @@ async function showDetails() {
   }
 
   const { includedRequests, onDemand, resetsAt } = lastData;
+  const includedUnit = includedRequests.unit ?? "requests";
   const reqPct = includedRequests.limit > 0 ? Math.round((includedRequests.used / includedRequests.limit) * 100) : 0;
   const spendRatio = getOnDemandRatio(onDemand);
   const spendPct = spendRatio === null ? null : Math.round(spendRatio * 100);
   const onDemandVisible = isOnDemandVisible(onDemand);
 
-  let message = `Requests: ${includedRequests.used}/${includedRequests.limit} (${reqPct}%)`;
+  const includedLabel = includedUnit === "cents" ? "Included" : "Requests";
+  let message = `${includedLabel}: ${formatIncludedUsage(includedRequests.used, includedRequests.limit, includedUnit)} (${reqPct}%)`;
   if (onDemandVisible) {
     const spendText = onDemand.state === "unlimited"
       ? `$${onDemand.spendDollars.toFixed(2)}`

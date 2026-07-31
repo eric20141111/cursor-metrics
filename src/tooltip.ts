@@ -1,5 +1,11 @@
 import type { UsagePayload } from "./cursor-api";
 import { getDurationLabel } from "./duration-options";
+import {
+  buildIncludedBarModel,
+  formatIncludedBarCaption,
+  formatIncludedUsageSpaced,
+  type IncludedBarSegments,
+} from "./format";
 import type { UsageDuration } from "./model-breakdown";
 
 type IncludedRequestsUsage = UsagePayload["includedRequests"];
@@ -8,6 +14,8 @@ type OnDemandUsage = UsagePayload["onDemand"];
 type ProgressBarRenderer = {
   markdown: (ratio: number) => string;
   html: (ratio: number) => string;
+  /** Segmented API+Bonus bar when bonus pool exists; falls back to html(ratio). */
+  htmlIncluded?: (ratio: number, segments: IncludedBarSegments | null) => string;
   divider: () => string;
 };
 
@@ -26,7 +34,11 @@ type SummaryColumn = {
 };
 
 function formatIncludedValue(includedRequests: IncludedRequestsUsage): string {
-  return `${includedRequests.used} / ${includedRequests.limit}`;
+  return formatIncludedUsageSpaced(
+    includedRequests.used,
+    includedRequests.limit,
+    includedRequests.unit ?? "requests",
+  );
 }
 
 function formatOnDemandValue(onDemand: OnDemandUsage): string {
@@ -58,16 +70,38 @@ function buildSummaryTable(columns: SummaryColumn[], renderProgressBar: Progress
   ].join("\n");
 }
 
+function renderIncludedFooter(
+  includedRequests: IncludedRequestsUsage,
+  renderProgressBar: ProgressBarRenderer,
+): string {
+  const model = buildIncludedBarModel(includedRequests);
+  const bar = renderProgressBar.htmlIncluded
+    ? renderProgressBar.htmlIncluded(model.ratio, model.segments)
+    : renderProgressBar.html(model.ratio);
+
+  if (!model.segments) {
+    return bar;
+  }
+
+  const caption = formatIncludedBarCaption(
+    model.segments,
+    includedRequests.unit ?? "requests",
+  );
+  return `${bar}<br/><sub>${caption}</sub>`;
+}
+
 function buildSummaryColumns(
   includedRequests: IncludedRequestsUsage,
   onDemand: OnDemandUsage,
   renderProgressBar: ProgressBarRenderer,
 ): SummaryColumn[] {
-  const reqRatio = includedRequests.limit > 0 ? includedRequests.used / includedRequests.limit : 0;
+  const hasBonus = (includedRequests.bonusCents ?? 0) > 0
+    && includedRequests.apiLimit != null
+    && includedRequests.limit !== includedRequests.apiLimit;
   const includedColumn: SummaryColumn = {
-    label: "Included",
+    label: hasBonus ? "Included (total)" : "Included",
     value: formatIncludedValue(includedRequests),
-    footer: renderProgressBar.html(reqRatio),
+    footer: renderIncludedFooter(includedRequests, renderProgressBar),
   };
 
   if (onDemand.state === "disabled") {
