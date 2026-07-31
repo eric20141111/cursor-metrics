@@ -11,6 +11,16 @@ import {
 const now = Date.UTC(2026, 3, 20, 12, 0, 0);
 const dayMs = 86_400_000;
 
+function ev(
+  partial: Omit<UsageEvent, "maxMode" | "spendCents"> & { spendCents?: number; maxMode?: boolean },
+): UsageEvent {
+  return {
+    maxMode: false,
+    spendCents: 0,
+    ...partial,
+  };
+}
+
 describe("model breakdown aggregation", () => {
   it("sums spend by category for the selected duration", () => {
     const spendRows: DailySpendRow[] = [
@@ -26,14 +36,15 @@ describe("model breakdown aggregation", () => {
     expect(totals.has("unknown")).toBeFalse();
   });
 
-  it("joins tokens, requests, and spend by model", () => {
+  it("sums tokens, requests, and spend from events (Dashboard-aligned)", () => {
     const events: UsageEvent[] = [
-      { timestamp: now - 1 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 2000, requests: 2 },
-      { timestamp: now - 2 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 3000, requests: 1 },
-      { timestamp: now - 1 * dayMs, model: "composer-2", kind: "Included", totalTokens: 1000, requests: 4 },
+      ev({ timestamp: now - 1 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 2000, requests: 2, spendCents: 200 }),
+      ev({ timestamp: now - 2 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 3000, requests: 1, spendCents: 120 }),
+      ev({ timestamp: now - 1 * dayMs, model: "composer-2", kind: "Included", totalTokens: 1000, requests: 4, spendCents: 0 }),
     ];
+    // Mismatched / orphan category rows must NOT zero out event spend.
     const spendRows: DailySpendRow[] = [
-      { day: now - 1 * dayMs, category: "gpt-5.3-codex", spendCents: 320, totalTokens: 5000 },
+      { day: now - 1 * dayMs, category: "GPT-5.3 Codex", spendCents: 999, totalTokens: 5000 },
     ];
 
     const rows = aggregateByModel(events, spendRows, "7d", null, now);
@@ -43,44 +54,104 @@ describe("model breakdown aggregation", () => {
     ]);
   });
 
-  it("supports sorting by selected column and direction", () => {
+  it("keeps event spend when daily-spend category names do not match", () => {
     const events: UsageEvent[] = [
-      { timestamp: now - 1 * dayMs, model: "zeta", kind: "On-Demand", totalTokens: 100, requests: 3 },
-      { timestamp: now - 1 * dayMs, model: "alpha", kind: "On-Demand", totalTokens: 200, requests: 1 },
-      { timestamp: now - 1 * dayMs, model: "beta", kind: "On-Demand", totalTokens: 150, requests: 2 },
+      ev({
+        timestamp: now - 1 * dayMs,
+        model: "claude-4.6-sonnet-medium-thinking",
+        kind: "On-Demand",
+        totalTokens: 8000,
+        requests: 1,
+        spendCents: 450,
+      }),
     ];
     const spendRows: DailySpendRow[] = [
-      { day: now - 1 * dayMs, category: "zeta", spendCents: 100, totalTokens: 100 },
-      { day: now - 1 * dayMs, category: "alpha", spendCents: 25, totalTokens: 200 },
-      { day: now - 1 * dayMs, category: "beta", spendCents: 50, totalTokens: 150 },
+      { day: now - 1 * dayMs, category: "claude-4.6-sonnet", spendCents: 450, totalTokens: 8000 },
     ];
 
-    const modelAsc = aggregateByModel(events, spendRows, "7d", null, now, "model", "asc");
+    const rows = aggregateByModel(events, spendRows, "7d", null, now);
+    expect(rows).toEqual([
+      {
+        model: "claude-4.6-sonnet-medium-thinking",
+        totalTokens: 8000,
+        requests: 1,
+        spendCents: 450,
+      },
+    ]);
+  });
+
+  it("hides Included chargedCents when quotaAwareEventDisplay is on (matches Dashboard)", () => {
+    const events: UsageEvent[] = [
+      ev({
+        timestamp: now - 1 * dayMs,
+        model: "Cursor Grok 4.5 (Auto Balanced)",
+        kind: "Included",
+        totalTokens: 18_500_000,
+        requests: 321,
+        spendCents: 1283,
+      }),
+      ev({
+        timestamp: now - 1 * dayMs,
+        model: "gpt-5.6-sol-medium",
+        kind: "Included",
+        totalTokens: 20_000_000,
+        requests: 700,
+        spendCents: 4986,
+      }),
+      ev({
+        timestamp: now - 1 * dayMs,
+        model: "gpt-5.6-sol-medium",
+        kind: "On-Demand",
+        totalTokens: 38_000_000,
+        requests: 1035,
+        spendCents: 3405,
+      }),
+    ];
+
+    const quotaAware = aggregateByModel(events, [], "7d", null, now, "tokens", "desc", true);
+    expect(quotaAware).toEqual([
+      { model: "gpt-5.6-sol-medium", totalTokens: 58_000_000, requests: 1735, spendCents: 3405 },
+      {
+        model: "Cursor Grok 4.5 (Auto Balanced)",
+        totalTokens: 18_500_000,
+        requests: 321,
+        spendCents: 0,
+      },
+    ]);
+
+    const raw = aggregateByModel(events, [], "7d", null, now, "tokens", "desc", false);
+    expect(raw.find((r) => r.model === "gpt-5.6-sol-medium")?.spendCents).toBe(4986 + 3405);
+    expect(raw.find((r) => r.model === "Cursor Grok 4.5 (Auto Balanced)")?.spendCents).toBe(1283);
+  });
+
+  it("supports sorting by selected column and direction", () => {
+    const events: UsageEvent[] = [
+      ev({ timestamp: now - 1 * dayMs, model: "zeta", kind: "On-Demand", totalTokens: 100, requests: 3, spendCents: 100 }),
+      ev({ timestamp: now - 1 * dayMs, model: "alpha", kind: "On-Demand", totalTokens: 200, requests: 1, spendCents: 25 }),
+      ev({ timestamp: now - 1 * dayMs, model: "beta", kind: "On-Demand", totalTokens: 150, requests: 2, spendCents: 50 }),
+    ];
+
+    const modelAsc = aggregateByModel(events, [], "7d", null, now, "model", "asc");
     expect(modelAsc.map((row) => row.model)).toEqual(["alpha", "beta", "zeta"]);
 
-    const requestsDesc = aggregateByModel(events, spendRows, "7d", null, now, "requests", "desc");
+    const requestsDesc = aggregateByModel(events, [], "7d", null, now, "requests", "desc");
     expect(requestsDesc.map((row) => row.model)).toEqual(["zeta", "beta", "alpha"]);
 
-    const spendAsc = aggregateByModel(events, spendRows, "7d", null, now, "spend", "asc");
+    const spendAsc = aggregateByModel(events, [], "7d", null, now, "spend", "asc");
     expect(spendAsc.map((row) => row.model)).toEqual(["alpha", "beta", "zeta"]);
   });
 
   it("applies duration cutoffs for 1d, 7d, and 30d", () => {
     const events: UsageEvent[] = [
-      { timestamp: now - 6 * dayMs, model: "gpt-5.3-codex", kind: "Included", totalTokens: 100, requests: 1 },
-      { timestamp: now - 20 * dayMs, model: "gpt-5.3-codex", kind: "Included", totalTokens: 200, requests: 1 },
-      { timestamp: now - 35 * dayMs, model: "gpt-5.3-codex", kind: "Included", totalTokens: 300, requests: 1 },
-    ];
-    const spendRows: DailySpendRow[] = [
-      { day: now - 6 * dayMs, category: "gpt-5.3-codex", spendCents: 50, totalTokens: 100 },
-      { day: now - 20 * dayMs, category: "gpt-5.3-codex", spendCents: 80, totalTokens: 200 },
-      { day: now - 35 * dayMs, category: "gpt-5.3-codex", spendCents: 90, totalTokens: 300 },
+      ev({ timestamp: now - 6 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 100, requests: 1, spendCents: 50 }),
+      ev({ timestamp: now - 20 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 200, requests: 1, spendCents: 80 }),
+      ev({ timestamp: now - 35 * dayMs, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 300, requests: 1, spendCents: 90 }),
     ];
 
-    const oneDay = aggregateByModel(events, spendRows, "1d", null, now);
+    const oneDay = aggregateByModel(events, [], "1d", null, now);
     expect(oneDay).toHaveLength(0);
 
-    const sevenDays = aggregateByModel(events, spendRows, "7d", null, now);
+    const sevenDays = aggregateByModel(events, [], "7d", null, now);
     expect(sevenDays[0]).toEqual({
       model: "gpt-5.3-codex",
       totalTokens: 100,
@@ -88,7 +159,7 @@ describe("model breakdown aggregation", () => {
       spendCents: 50,
     });
 
-    const thirtyDays = aggregateByModel(events, spendRows, "30d", null, now);
+    const thirtyDays = aggregateByModel(events, [], "30d", null, now);
     expect(thirtyDays[0]).toEqual({
       model: "gpt-5.3-codex",
       totalTokens: 300,
@@ -102,15 +173,11 @@ describe("model breakdown aggregation", () => {
     const cycleStart = Date.UTC(2026, 3, 15, 0, 0, 0);
 
     const events: UsageEvent[] = [
-      { timestamp: cycleStart - 1_000, model: "gpt-5.3-codex", kind: "Included", totalTokens: 50, requests: 1 },
-      { timestamp: cycleStart + 1_000, model: "gpt-5.3-codex", kind: "Included", totalTokens: 75, requests: 1 },
-    ];
-    const spendRows: DailySpendRow[] = [
-      { day: cycleStart - 1_000, category: "gpt-5.3-codex", spendCents: 20, totalTokens: 50 },
-      { day: cycleStart + 1_000, category: "gpt-5.3-codex", spendCents: 30, totalTokens: 75 },
+      ev({ timestamp: cycleStart - 1_000, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 50, requests: 1, spendCents: 20 }),
+      ev({ timestamp: cycleStart + 1_000, model: "gpt-5.3-codex", kind: "On-Demand", totalTokens: 75, requests: 1, spendCents: 30 }),
     ];
 
-    const rows = aggregateByModel(events, spendRows, "billingCycle", resetsAt, now);
+    const rows = aggregateByModel(events, [], "billingCycle", resetsAt, now);
     expect(rows).toEqual([
       { model: "gpt-5.3-codex", totalTokens: 75, requests: 1, spendCents: 30 },
     ]);
@@ -122,8 +189,8 @@ describe("model breakdown aggregation", () => {
     const cycleStart = Date.UTC(2026, 4, 1, 0, 0, 0);
 
     const events: UsageEvent[] = [
-      { timestamp: cycleStart + 1000, model: "gpt-5.3-codex", kind: "Included", totalTokens: 111, requests: 1 },
-      { timestamp: cycleStart - 1000, model: "gpt-5.3-codex", kind: "Included", totalTokens: 222, requests: 1 },
+      ev({ timestamp: cycleStart + 1000, model: "gpt-5.3-codex", kind: "Included", totalTokens: 111, requests: 1 }),
+      ev({ timestamp: cycleStart - 1000, model: "gpt-5.3-codex", kind: "Included", totalTokens: 222, requests: 1 }),
     ];
 
     const rows = aggregateByModel(events, [], "billingCycle", resetsAt, may31Noon);

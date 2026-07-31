@@ -86,24 +86,37 @@ export function aggregateSpendByCategory(
   return totals;
 }
 
+/** Match Dashboard: with quota-aware display, only On-Demand events contribute spend. */
+export function billableSpendCents(event: UsageEvent, quotaAwareEventDisplay: boolean): number {
+  if (quotaAwareEventDisplay && event.kind !== "On-Demand") return 0;
+  return event.spendCents;
+}
+
+/**
+ * Aggregate usage by model for the selected duration.
+ * Spend comes from event.spendCents with the same quota-aware rule as Dashboard
+ * (Included chargedCents are hidden when quotaAwareEventDisplay is on).
+ * `spendRows` is kept for call-site compatibility; unused for the spend column.
+ */
 export function aggregateByModel(
   events: UsageEvent[],
-  spendRows: DailySpendRow[],
+  _spendRows: DailySpendRow[],
   duration: UsageDuration,
   resetAtIso: string | null,
   now = Date.now(),
   sortBy: ModelBreakdownSortBy = "tokens",
   sortOrder: SortOrder = "desc",
+  quotaAwareEventDisplay = true,
 ): ModelAggregate[] {
   const cutoff = getDurationCutoff(duration, resetAtIso, now);
-  const spendByCategory = aggregateSpendByCategory(spendRows, duration, resetAtIso, now);
-  const modelMap = new Map<string, { totalTokens: number; requests: number }>();
+  const modelMap = new Map<string, { totalTokens: number; requests: number; spendCents: number }>();
 
   for (const event of events) {
     if (event.timestamp < cutoff) continue;
-    const entry = modelMap.get(event.model) ?? { totalTokens: 0, requests: 0 };
+    const entry = modelMap.get(event.model) ?? { totalTokens: 0, requests: 0, spendCents: 0 };
     entry.totalTokens += event.totalTokens;
     entry.requests += event.requests;
+    entry.spendCents += billableSpendCents(event, quotaAwareEventDisplay);
     modelMap.set(event.model, entry);
   }
 
@@ -111,7 +124,7 @@ export function aggregateByModel(
     model,
     totalTokens: totals.totalTokens,
     requests: totals.requests,
-    spendCents: spendByCategory.get(model) ?? 0,
+    spendCents: totals.spendCents,
   }));
   return sortModelAggregates(rows, sortBy, sortOrder);
 }
