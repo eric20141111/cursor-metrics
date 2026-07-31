@@ -25,6 +25,12 @@ import {
   type UsageDuration,
 } from "./model-breakdown";
 import {
+  buildModelEfficiency,
+  formatCostPerM,
+  type ModelEfficiencyRow,
+} from "./model-efficiency";
+import { formatTooltipNoticeMarkdown } from "./pool-insight";
+import {
   buildUsageByModelHeadingMarkdown,
   buildUsageOverviewMarkdown,
   OPEN_DURATION_SETTING_COMMAND,
@@ -230,9 +236,7 @@ function summaryDividerHtml(height = 52): string {
 
 type OnDemandUsage = UsagePayload["onDemand"];
 
-function buildModelBreakdownTableMarkdown(
-  rows: Array<{ model: string; totalTokens: number; requests: number; spendCents: number }>,
-): string {
+function buildModelBreakdownTableMarkdown(rows: ModelEfficiencyRow[]): string {
   if (rows.length === 0) {
     return toMarkdownBlock(renderTooltipRoundedCard("<em>No usage in this period</em>", 48, "neutral"));
   }
@@ -240,10 +244,11 @@ function buildModelBreakdownTableMarkdown(
   const lines = [
     `<table class="rows" width="100%" cellspacing="0" cellpadding="0">`,
     `  <tr>`,
-    `    <th align="left" width="46%">Model</th>`,
-    `    <th align="right" width="16%">Reqs</th>`,
-    `    <th align="right" width="19%">Tokens</th>`,
-    `    <th align="right" width="19%">Spend</th>`,
+    `    <th align="left" width="36%">Model</th>`,
+    `    <th align="right" width="12%">Reqs</th>`,
+    `    <th align="right" width="18%">Tokens</th>`,
+    `    <th align="right" width="16%">Spend</th>`,
+    `    <th align="right" width="18%">$/M</th>`,
     `  </tr>`,
   ];
 
@@ -254,6 +259,7 @@ function buildModelBreakdownTableMarkdown(
       `<td align="right">${Math.round(row.requests)}</td>` +
       `<td align="right">${formatTokens(row.totalTokens)}</td>` +
       `<td align="right">${formatDollarsFromCents(row.spendCents)}</td>` +
+      `<td align="right">${formatCostPerM(row.costPerM)}</td>` +
       `</tr>`,
     );
   }
@@ -363,8 +369,17 @@ function updateStatusBar(data: UsagePayload) {
       config.modelBreakdownSortOrder,
     );
     const filteredModels = filterZeroTokenModels(models, config.excludeZeroTokenModels);
+    const efficiency = buildModelEfficiency(filteredModels);
     md += buildUsageByModelHeadingMarkdown(usageDuration);
-    md += buildModelBreakdownTableMarkdown(filteredModels);
+    if (efficiency.advice) {
+      md += `**$(lightbulb) Model tip**\n\n${formatTooltipNoticeMarkdown(
+        efficiency.advice,
+        "💡",
+        "warning",
+        renderTooltipRoundedCard,
+      )}`;
+    }
+    md += buildModelBreakdownTableMarkdown(efficiency.rows);
   }
 
   if (data.resetsAt) {
