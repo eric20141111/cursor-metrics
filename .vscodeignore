@@ -1,5 +1,9 @@
 .cursor/
+.omc/
+.superpowers/
+docs/superpowers/
 src/
+test/
 node_modules/
 esbuild.config.mjs
 tsconfig.json
