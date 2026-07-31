@@ -7,6 +7,11 @@ import {
   type IncludedBarSegments,
 } from "./format";
 import type { UsageDuration } from "./model-breakdown";
+import {
+  buildPoolAdvice,
+  buildPoolBreakdown,
+  formatPoolInsightMarkdown,
+} from "./pool-insight";
 
 type IncludedRequestsUsage = UsagePayload["includedRequests"];
 type OnDemandUsage = UsagePayload["onDemand"];
@@ -136,7 +141,13 @@ export function buildUsageOverviewMarkdown(
   renderProgressBar: ProgressBarRenderer,
 ): string {
   const { includedRequests, onDemand } = data;
-  return buildSummaryTable(buildSummaryColumns(includedRequests, onDemand, renderProgressBar), renderProgressBar);
+  const overview = buildSummaryTable(
+    buildSummaryColumns(includedRequests, onDemand, renderProgressBar),
+    renderProgressBar,
+  );
+  const breakdown = buildPoolBreakdown(data);
+  const advice = buildPoolAdvice(breakdown, onDemand);
+  return overview + formatPoolInsightMarkdown(breakdown, onDemand, advice);
 }
 
 export function buildUsageByModelHeadingMarkdown(duration: UsageDuration): string {

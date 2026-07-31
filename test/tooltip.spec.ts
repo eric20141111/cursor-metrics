@@ -11,7 +11,7 @@ describe("buildUsageOverviewMarkdown", () => {
   it("renders a balanced two-column summary for limited on-demand spend", () => {
     const markdown = buildUsageOverviewMarkdown(
       {
-        includedRequests: { used: 500, limit: 500 },
+        includedRequests: { used: 500, limit: 500, unit: "requests" },
         onDemand: { state: "limited", spendDollars: 66.89, limitDollars: 200 },
       },
       progressBar,
@@ -35,7 +35,7 @@ describe("buildUsageOverviewMarkdown", () => {
   it("renders unlimited copy on the bottom row so the columns stay aligned", () => {
     const markdown = buildUsageOverviewMarkdown(
       {
-        includedRequests: { used: 500, limit: 500 },
+        includedRequests: { used: 500, limit: 500, unit: "requests" },
         onDemand: { state: "unlimited", spendDollars: 66.89, limitDollars: null },
       },
       progressBar,
@@ -56,10 +56,32 @@ describe("buildUsageOverviewMarkdown", () => {
     expect(markdown).not.toContain("On-Demand Spend");
   });
 
+  it("appends pool lines and advice under the overview when cents pools exist", () => {
+    const markdown = buildUsageOverviewMarkdown(
+      {
+        includedRequests: {
+          used: 2112,
+          limit: 6166,
+          unit: "cents",
+          apiUsed: 2000,
+          apiLimit: 2000,
+          bonusCents: 4166,
+          apiPercentUsed: 100,
+          autoPercentUsed: 5.64,
+          totalPercentUsed: 34.26,
+        },
+        onDemand: { state: "unlimited", spendDollars: 32.31, limitDollars: null },
+      },
+      progressBar,
+    );
+    expect(markdown).toContain("API pool");
+    expect(markdown).toContain("Prefer Auto / Cursor Models");
+  });
+
   it("renders a single-column balanced summary when on-demand is hidden", () => {
     const markdown = buildUsageOverviewMarkdown(
       {
-        includedRequests: { used: 42, limit: 500 },
+        includedRequests: { used: 42, limit: 500, unit: "requests" },
         onDemand: { state: "disabled", spendDollars: 0, limitDollars: null },
       },
       progressBar,
