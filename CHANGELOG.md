@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.22] - 2026-08-03
+
+### Changed
+- Renamed `cursorUsage.statusBarOnDemandLimit` to `cursorUsage.onDemandLimit` and apply that ceiling in both the status bar and dashboard On-Demand card.
+
+## [0.5.21] - 2026-08-03
+
+### Added
+- `cursorUsage.statusBarOnDemandLimit` setting (default `1000`) to control the On-Demand ceiling shown in the status bar.
+
 ## [0.5.20] - 2026-08-03
 
 ### Changed

@@ -286,16 +286,10 @@
     );
 
     if (onDemand.state !== "disabled") {
-      let valText, footerText, ratio;
-      if (onDemand.state === "unlimited") {
-        valText = formatDollars(onDemand.spendDollars);
-        footerText = "Unlimited";
-        ratio = 0;
-      } else {
-        valText = formatDollars(onDemand.spendDollars) + " / " + formatDollars(onDemand.limitDollars || 0);
-        ratio = onDemand.limitDollars > 0 ? Math.min(1, onDemand.spendDollars / onDemand.limitDollars) : 0;
-        footerText = "Pay for extra usage beyond your plan limits";
-      }
+      const limitDollars = (state.onDemandLimitDollars > 0 ? state.onDemandLimitDollars : 1000);
+      const valText = formatDollars(onDemand.spendDollars) + " / " + formatDollars(limitDollars);
+      const ratio = limitDollars > 0 ? Math.min(1, onDemand.spendDollars / limitDollars) : 0;
+      const footerText = "Pay for extra usage beyond your plan limits";
       parts.push(
         '<div class="card">' +
           '<div class="card-label">On-Demand Usage</div>' +

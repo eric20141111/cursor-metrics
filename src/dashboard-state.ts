@@ -1,4 +1,5 @@
 import type { DailySpendRow, UsageEvent, UsagePayload } from "./cursor-api";
+import { DEFAULT_ON_DEMAND_LIMIT_DOLLARS, resolveOnDemandLimit } from "./format";
 import { getDurationCutoff, type UsageDuration } from "./model-breakdown";
 import { buildPoolInsightView } from "./pool-insight";
 import { buildSpendForecast, formatForecastDashboard, type SpendForecast } from "./spend-forecast";
@@ -28,6 +29,7 @@ export type DashboardState = {
   resetsAt: string | null;
   isTeamMember: boolean;
   quotaAwareEventDisplay: boolean;
+  onDemandLimitDollars: number;
   poolInsight: ReturnType<typeof buildPoolInsightView>;
   spendForecast: ForecastDashboardView | null;
   error: string | null;
@@ -67,6 +69,7 @@ export function buildDashboardState(
   now: number,
   quotaAwareEventDisplay = true,
   monthlyOnDemandBudget: number | null = null,
+  onDemandLimitDollars = DEFAULT_ON_DEMAND_LIMIT_DOLLARS,
 ): DashboardState {
   let spendForecast: ForecastDashboardView | null = null;
   if (data && data.onDemand.state !== "disabled") {
@@ -88,6 +91,7 @@ export function buildDashboardState(
     resetsAt: data?.resetsAt ?? null,
     isTeamMember,
     quotaAwareEventDisplay,
+    onDemandLimitDollars: resolveOnDemandLimit(onDemandLimitDollars),
     poolInsight: data ? buildPoolInsightView(data) : null,
     spendForecast,
     error,

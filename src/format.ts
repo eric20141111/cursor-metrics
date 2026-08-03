@@ -5,22 +5,36 @@ export function formatTokens(n: number): string {
   return String(n);
 }
 
-/** Hardcoded display ceiling for status-bar On-Demand spend. */
-export const STATUS_BAR_ON_DEMAND_LIMIT_DOLLARS = 1000;
+/** Default On-Demand display ceiling in dollars (status bar + dashboard). */
+export const DEFAULT_ON_DEMAND_LIMIT_DOLLARS = 1000;
+
+/** Clamp / fall back invalid config values to the default ceiling. */
+export function resolveOnDemandLimit(raw: number | null | undefined): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) {
+    return DEFAULT_ON_DEMAND_LIMIT_DOLLARS;
+  }
+  return raw;
+}
+
+function formatOnDemandLimitDollars(limitDollars: number): string {
+  return Number.isInteger(limitDollars) ? String(limitDollars) : limitDollars.toFixed(2);
+}
 
 /**
  * Status bar primary text for On-Demand usage.
- * Visible → `$spend/$1000`; disabled → `N/A`. Optional riskMark is appended with a leading space.
+ * Visible → `$spend/$limit`; disabled → `N/A`. Optional riskMark is appended with a leading space.
  */
 export function formatStatusBarOnDemandText(
   onDemand: { state: string; spendDollars: number },
   riskMark = "",
+  limitDollars: number = DEFAULT_ON_DEMAND_LIMIT_DOLLARS,
 ): string {
   if (onDemand.state === "disabled") {
     return "N/A";
   }
   const mark = riskMark ? ` ${riskMark}` : "";
-  return `$${onDemand.spendDollars.toFixed(2)}/$${STATUS_BAR_ON_DEMAND_LIMIT_DOLLARS}${mark}`;
+  const limit = resolveOnDemandLimit(limitDollars);
+  return `$${onDemand.spendDollars.toFixed(2)}/$${formatOnDemandLimitDollars(limit)}${mark}`;
 }
 
 export type IncludedUnit = "requests" | "cents";

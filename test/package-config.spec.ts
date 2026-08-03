@@ -56,6 +56,14 @@ describe("package configuration", () => {
     expect(budgetConfig.minimum).toBe(0);
   });
 
+  it("exposes an On-demand display limit setting for status bar and dashboard", () => {
+    const limitConfig = packageJson.contributes.configuration.properties["cursorUsage.onDemandLimit"];
+
+    expect(limitConfig.default).toBe(1000);
+    expect(limitConfig.type).toBe("number");
+    expect(limitConfig.minimum).toBe(1);
+  });
+
   it("exposes a Budget Advice command", () => {
     const commands = packageJson.contributes.commands;
     const advice = commands.find((c) => c.command === "cursor-usage.budgetAdvice");

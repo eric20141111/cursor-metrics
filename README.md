@@ -25,6 +25,7 @@ See Cursor On-Demand spend in your status bar, live while you work. Click the st
 - `cursorUsage.pollInterval` (default: `5`) - minimum refresh cooldown in minutes (`1`, `5`, `10`, `30`, `60`).
 - `cursorUsage.minimalMode` (default: `false`) - show only the active metric.
 - `cursorUsage.usageDuration` (default: `billingCycle`) - tooltip model-usage range: `1d`, `7d`, `30d`, or `billingCycle`.
+- `cursorUsage.onDemandLimit` (default: `1000`) - On-Demand ceiling in dollars for status bar and dashboard (`spend / limit`).
 
 ## Privacy and behavior
 

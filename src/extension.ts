@@ -15,7 +15,7 @@ import { buildBudgetAdvice } from "./budget-advice";
 import {
   resolveConfiguredUsageDuration,
 } from "./duration-options";
-import { formatTokens, formatIncludedUsage, formatStatusBarOnDemandText } from "./format";
+import { formatTokens, formatIncludedUsage, formatStatusBarOnDemandText, resolveOnDemandLimit } from "./format";
 import type { IncludedBarSegments } from "./format";
 import {
   aggregateByModel,
@@ -74,6 +74,7 @@ function getConfig() {
     excludeZeroTokenModels: cfg.get<boolean>("excludeZeroTokenModels", false),
     quotaAwareEventDisplay: cfg.get<boolean>("quotaAwareEventDisplay", true),
     monthlyOnDemandBudget: cfg.get<number | null>("monthlyOnDemandBudget", null),
+    onDemandLimit: resolveOnDemandLimit(cfg.get<number>("onDemandLimit", 1000)),
   };
 }
 
@@ -305,7 +306,7 @@ function updateStatusBar(data: UsagePayload) {
         });
   const riskMark = forecast?.statusMark ?? "";
 
-  statusBarItem.text = `$(pulse) ${formatStatusBarOnDemandText(onDemand, riskMark)}`;
+  statusBarItem.text = `$(pulse) ${formatStatusBarOnDemandText(onDemand, riskMark, config.onDemandLimit)}`;
 
   const tooltip = new vscode.MarkdownString();
   tooltip.isTrusted = {
@@ -495,6 +496,7 @@ function getDashboardState(): DashboardState {
     Date.now(),
     config.quotaAwareEventDisplay,
     config.monthlyOnDemandBudget,
+    config.onDemandLimit,
   );
 }
 
@@ -573,7 +575,9 @@ export function activate(context: vscode.ExtensionContext) {
         || e.affectsConfiguration("cursorUsage.modelBreakdownSortBy")
         || e.affectsConfiguration("cursorUsage.modelBreakdownSortOrder")
         || e.affectsConfiguration("cursorUsage.excludeZeroTokenModels")
-        || e.affectsConfiguration("cursorUsage.quotaAwareEventDisplay"))
+        || e.affectsConfiguration("cursorUsage.quotaAwareEventDisplay")
+        || e.affectsConfiguration("cursorUsage.onDemandLimit")
+        || e.affectsConfiguration("cursorUsage.monthlyOnDemandBudget"))
     ) {
       updateStatusBar(lastData);
       DashboardPanel.currentPanel?.postState(getDashboardState());

@@ -1,6 +1,6 @@
 {
   "name": "cursor-usage",
-  "version": "0.5.20",
+  "version": "0.5.22",
   "repository": {
     "type": "git",
     "url": "https://github.com/wrick17/cursor-metrics"
@@ -134,6 +134,12 @@
           "default": null,
           "minimum": 0,
           "description": "Optional monthly On-demand cash budget in dollars. Used as the pace baseline when Cursor has no hard On-demand limit. Leave empty to show cycle estimates without high/low pace ratings."
+        },
+        "cursorUsage.onDemandLimit": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 1,
+          "description": "On-Demand spending ceiling in dollars, shown in the status bar and dashboard (spend / this limit). Does not change Cursor billing."
         }
       }
     }

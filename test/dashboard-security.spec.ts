@@ -15,4 +15,11 @@ describe("dashboard security hardening", () => {
     expect(dashboardScript).toContain("events: false");
     expect(dashboardScript).not.toContain("events: persisted.sectionOpen?.events !== false");
   });
+
+  it("renders On-Demand summary using the shared onDemandLimitDollars ceiling", () => {
+    const dashboardScript = readFileSync("media/dashboard/dashboard.js", "utf-8");
+
+    expect(dashboardScript).toContain("state.onDemandLimitDollars");
+    expect(dashboardScript).not.toContain("onDemand.limitDollars || 0");
+  });
 });

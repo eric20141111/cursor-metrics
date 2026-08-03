@@ -32,8 +32,14 @@ describe("buildDashboardState", () => {
     expect(state.events.length).toBe(5);
     expect(state.isTeamMember).toBeTrue();
     expect(state.quotaAwareEventDisplay).toBeTrue();
+    expect(state.onDemandLimitDollars).toBe(1000);
     expect(state.error).toBeNull();
     expect(state.resetsAt).toBeNull();
+  });
+
+  it("propagates a custom on-demand display limit", () => {
+    const state = buildDashboardState(sampleData, sampleEvents, [], true, null, now, true, null, 500);
+    expect(state.onDemandLimitDollars).toBe(500);
   });
 
   it("propagates resetsAt from data", () => {
