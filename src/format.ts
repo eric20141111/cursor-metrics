@@ -5,6 +5,24 @@ export function formatTokens(n: number): string {
   return String(n);
 }
 
+/** Hardcoded display ceiling for status-bar On-Demand spend. */
+export const STATUS_BAR_ON_DEMAND_LIMIT_DOLLARS = 1000;
+
+/**
+ * Status bar primary text for On-Demand usage.
+ * Visible → `$spend/$1000`; disabled → `N/A`. Optional riskMark is appended with a leading space.
+ */
+export function formatStatusBarOnDemandText(
+  onDemand: { state: string; spendDollars: number },
+  riskMark = "",
+): string {
+  if (onDemand.state === "disabled") {
+    return "N/A";
+  }
+  const mark = riskMark ? ` ${riskMark}` : "";
+  return `$${onDemand.spendDollars.toFixed(2)}/$${STATUS_BAR_ON_DEMAND_LIMIT_DOLLARS}${mark}`;
+}
+
 export type IncludedUnit = "requests" | "cents";
 
 /** Format included quota for status bar / cards. Cents → dollars. */

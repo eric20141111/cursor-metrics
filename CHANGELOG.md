@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.20] - 2026-08-03
+
+### Changed
+- Status bar now shows only On-Demand spend against a fixed `$1000` ceiling (for example `$114.78/$1000`), or `N/A` when On-Demand is disabled.
+- Dashboard Events section always starts collapsed on open; expand is manual each visit.
+
 ## [0.5.18] - 2026-05-07
 
 ### Added

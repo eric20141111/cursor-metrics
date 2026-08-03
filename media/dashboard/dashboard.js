@@ -37,7 +37,8 @@
       guide: persisted.sectionOpen?.guide === true,
       usage: persisted.sectionOpen?.usage !== false,
       breakdown: persisted.sectionOpen?.breakdown !== false,
-      events: persisted.sectionOpen?.events !== false,
+      // Always start collapsed; ignore persisted open state for Events.
+      events: false,
     },
   };
 

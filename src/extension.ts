@@ -15,7 +15,7 @@ import { buildBudgetAdvice } from "./budget-advice";
 import {
   resolveConfiguredUsageDuration,
 } from "./duration-options";
-import { formatTokens, formatIncludedUsage } from "./format";
+import { formatTokens, formatIncludedUsage, formatStatusBarOnDemandText } from "./format";
 import type { IncludedBarSegments } from "./format";
 import {
   aggregateByModel,
@@ -281,13 +281,6 @@ function getOnDemandRatio(onDemand: OnDemandUsage): number | null {
   return onDemand.spendDollars / onDemand.limitDollars;
 }
 
-function formatOnDemandStatus(onDemand: OnDemandUsage): string {
-  if (onDemand.state === "unlimited") {
-    return `$${onDemand.spendDollars.toFixed(2)}`;
-  }
-  return `$${onDemand.spendDollars.toFixed(2)}/$${(onDemand.limitDollars ?? 0).toFixed(2)}`;
-}
-
 function formatOnDemandTooltipCell(onDemand: OnDemandUsage): string {
   if (onDemand.state === "unlimited") {
     return `$${onDemand.spendDollars.toFixed(2)}`;
@@ -299,16 +292,6 @@ function formatOnDemandTooltipCell(onDemand: OnDemandUsage): string {
 
 function updateStatusBar(data: UsagePayload) {
   const { includedRequests, onDemand } = data;
-  const { minimalMode } = getConfig();
-  const includedUnit = includedRequests.unit ?? "requests";
-  const includedText = formatIncludedUsage(
-    includedRequests.used,
-    includedRequests.limit,
-    includedUnit,
-  );
-
-  const premiumExhausted = includedRequests.used >= includedRequests.limit;
-  const onDemandVisible = isOnDemandVisible(onDemand);
 
   const config = getConfig();
   const forecast =
@@ -320,19 +303,9 @@ function updateStatusBar(data: UsagePayload) {
           events: lastEvents ?? [],
           monthlyBudgetDollars: config.monthlyOnDemandBudget,
         });
-  const riskMark = forecast?.statusMark ? ` ${forecast.statusMark}` : "";
+  const riskMark = forecast?.statusMark ?? "";
 
-  if (minimalMode) {
-    if (premiumExhausted && onDemandVisible) {
-      statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}${riskMark}`;
-    } else {
-      statusBarItem.text = `$(pulse) ${includedText}${riskMark}`;
-    }
-  } else {
-    statusBarItem.text = onDemandVisible
-      ? `$(pulse) ${includedText} | ${formatOnDemandStatus(onDemand)}${riskMark}`
-      : `$(pulse) ${includedText}${riskMark}`;
-  }
+  statusBarItem.text = `$(pulse) ${formatStatusBarOnDemandText(onDemand, riskMark)}`;
 
   const tooltip = new vscode.MarkdownString();
   tooltip.isTrusted = {

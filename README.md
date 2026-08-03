@@ -1,6 +1,6 @@
 # Cursor Usage
 
-See Cursor usage in your status bar: included requests and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
+See Cursor On-Demand spend in your status bar, live while you work. Click the status bar item to open a full dashboard inside your editor.
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 
@@ -8,12 +8,11 @@ See Cursor usage in your status bar: included requests and on-demand spend, live
 
 ## What you get
 
-- Compact status bar display (for example: `500/500 | $114.78/$300`).
+- Compact status bar display of On-Demand spend (for example: `$114.78/$1000`).
 - Detailed hover tooltip with progress bars, reset countdown, and per-model usage.
-- Full dashboard tab with summary cards, a per-day stacked bar chart, a sortable Usage by Model table, and a per-event Events table with Export CSV.
+- Full dashboard tab with summary cards, a per-day stacked bar chart, a sortable Usage by Model table, and a per-event Events table with Export CSV (Events starts collapsed).
 - Loading indicator while fresh usage data is being fetched.
 - Smart refresh behavior tied to editor activity and window focus.
-- Optional minimal mode to show only the active metric.
 
 ## Commands
 
