@@ -136,15 +136,34 @@ describe("usagePayloadFromSummary", () => {
         onDemand: { enabled: true, used: 3231, limit: null },
       },
     });
-    const payload = usagePayloadFromSummary(parsed!, {
-      isTeamMember: true,
-      teamId: 1,
-      maxRequestUsage: 0,
-      onDemandEnabled: true,
-    });
+    const payload = usagePayloadFromSummary(parsed!);
     expect(payload!.includedRequests.apiPercentUsed).toBe(100);
     expect(payload!.includedRequests.autoPercentUsed).toBe(5.64);
     expect(payload!.includedRequests.totalPercentUsed).toBe(34.25);
+  });
+
+  it("keeps On-Demand visible from the summary flag alone", () => {
+    const parsed = parseUsageSummary({
+      billingCycleEnd: "2026-08-29T12:47:47.000Z",
+      individualUsage: {
+        plan: { enabled: true, used: 2000, limit: 2000, remaining: 0 },
+        onDemand: { enabled: true, used: 11478, limit: null },
+      },
+    });
+    const payload = usagePayloadFromSummary(parsed!);
+    expect(payload!.onDemand.state).toBe("unlimited");
+    expect(payload!.onDemand.spendDollars).toBeCloseTo(114.78, 5);
+  });
+
+  it("reports disabled only when the summary says On-Demand is off", () => {
+    const parsed = parseUsageSummary({
+      individualUsage: {
+        plan: { enabled: true, used: 2000, limit: 2000, remaining: 0 },
+        onDemand: { enabled: false, used: 0, limit: null },
+      },
+    });
+    const payload = usagePayloadFromSummary(parsed!);
+    expect(payload!.onDemand.state).toBe("disabled");
   });
 });
 

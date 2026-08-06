@@ -661,15 +661,13 @@ export function parseUsageSummary(raw: unknown): ParsedUsageSummary | null {
   return { plan, onDemand, billingCycleEnd, membershipType, limitType };
 }
 
-export function usagePayloadFromSummary(
-  summary: ParsedUsageSummary,
-  setup: SetupCache,
-): UsagePayload | null {
+/** usage-summary carries its own On-Demand flag; it wins over the legacy stripe flag. */
+export function usagePayloadFromSummary(summary: ParsedUsageSummary): UsagePayload | null {
   if (!summary.plan) return null;
 
   const onDemandApi = summary.onDemand;
   let onDemand: UsagePayload["onDemand"];
-  if (!onDemandApi || !onDemandApi.enabled || !setup.onDemandEnabled) {
+  if (!onDemandApi || !onDemandApi.enabled) {
     onDemand = { state: "disabled", spendDollars: 0, limitDollars: null };
   } else if (onDemandApi.limitCents !== null && onDemandApi.limitCents > 0) {
     onDemand = {
@@ -749,17 +747,22 @@ async function ensureSetup(
   const usage = usageRes.ok ? await usageRes.json() : null;
   const totals = extractUsageTotals(usage);
 
-  cachedSetup = {
+  const setup: SetupCache = {
     isTeamMember: !!(stripe?.isTeamMember && stripe.teamId),
     teamId: stripe?.teamId,
     maxRequestUsage: totals.limit > 0 ? totals.limit : totals.used,
     onDemandEnabled: Boolean(stripe?.isOnBillableAuto),
   };
 
+  // Never cache a stripe failure: it would pin onDemandEnabled=false for the whole session.
+  if (stripe) {
+    cachedSetup = setup;
+  }
+
   log(
-    `Setup cached: team=${cachedSetup.isTeamMember}, teamId=${cachedSetup.teamId}, maxReq=${cachedSetup.maxRequestUsage}, onDemandEnabled=${cachedSetup.onDemandEnabled}`,
+    `Setup ${stripe ? "cached" : "not cached (stripe unavailable)"}: team=${setup.isTeamMember}, teamId=${setup.teamId}, maxReq=${setup.maxRequestUsage}, onDemandEnabled=${setup.onDemandEnabled}`,
   );
-  return cachedSetup;
+  return setup;
 }
 
 export async function fetchUsageData(): Promise<UsagePayload | null> {
@@ -780,7 +783,7 @@ export async function fetchUsageData(): Promise<UsagePayload | null> {
 
   const summary = await fetchUsageSummary(headers);
   if (summary) {
-    const fromSummary = usagePayloadFromSummary(summary, setup);
+    const fromSummary = usagePayloadFromSummary(summary);
     if (fromSummary) {
       const spendLimitLabel = fromSummary.onDemand.state === "unlimited"
         ? "∞"

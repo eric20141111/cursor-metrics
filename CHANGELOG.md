@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.23] - 2026-08-06
+
+### Fixed
+- On-Demand no longer shows `N/A` when `/api/auth/stripe` is unreachable: that failure is no longer cached as "On-Demand disabled" for the rest of the session.
+- On-Demand state now follows the `usage-summary` API flag instead of also requiring the legacy stripe `isOnBillableAuto` flag.
+
 ## [0.5.22] - 2026-08-03
 
 ### Changed
