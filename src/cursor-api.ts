@@ -403,6 +403,35 @@ function withTimeout(init: RequestInit = {}): RequestInit {
   return { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) };
 }
 
+/**
+ * cursor.com sits behind Vercel bot protection, which answers `403` plus an HTML
+ * interstitial (`x-vercel-mitigated: challenge`) instead of JSON. Only a browser can
+ * solve it, so callers should report it rather than treat it as missing usage data.
+ */
+export function isSecurityCheckpoint(res: Response): boolean {
+  return res.status === 403 && res.headers.get("x-vercel-mitigated") === "challenge";
+}
+
+let securityCheckpointHit = false;
+
+/** True when the last poll was answered by the security checkpoint. */
+export function wasSecurityCheckpointHit(): boolean {
+  return securityCheckpointHit;
+}
+
+export function resetSecurityCheckpointFlag(): void {
+  securityCheckpointHit = false;
+}
+
+async function cursorFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(url, withTimeout(init));
+  if (isSecurityCheckpoint(res)) {
+    securityCheckpointHit = true;
+    log(`Blocked by cursor.com security checkpoint (403 challenge): ${new URL(url).pathname}`);
+  }
+  return res;
+}
+
 function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() !== "") {
@@ -706,7 +735,7 @@ async function fetchUsageSummary(
   headers: ReturnType<typeof cursorHeaders>,
 ): Promise<ParsedUsageSummary | null> {
   log("Fetching /api/usage-summary...");
-  const res = await fetch("https://cursor.com/api/usage-summary", withTimeout({ headers }));
+  const res = await cursorFetch("https://cursor.com/api/usage-summary", { headers });
   log(`usage-summary status: ${res.status}`);
   if (!res.ok) return null;
   const raw = await res.json();
@@ -737,8 +766,8 @@ async function ensureSetup(
 
   log("Running one-time setup (stripe + usage)...");
   const [stripeRes, usageRes] = await Promise.all([
-    fetch("https://cursor.com/api/auth/stripe", withTimeout({ headers })),
-    fetch(`https://cursor.com/api/usage?user=${userId}`, withTimeout({ headers })),
+    cursorFetch("https://cursor.com/api/auth/stripe", { headers }),
+    cursorFetch(`https://cursor.com/api/usage?user=${userId}`, { headers }),
   ]);
 
   log(`Setup: Stripe ${stripeRes.status}, Usage ${usageRes.status}`);
@@ -810,12 +839,12 @@ async function fetchTeamUsage(
   setup: SetupCache,
 ): Promise<UsagePayload | null> {
   const [teamSpendRes, usageRes] = await Promise.all([
-    fetch("https://cursor.com/api/dashboard/get-team-spend", withTimeout({
+    cursorFetch("https://cursor.com/api/dashboard/get-team-spend", {
       method: "POST",
       headers,
       body: JSON.stringify({ teamId: setup.teamId }),
-    })),
-    fetch(`https://cursor.com/api/usage?user=${auth.userId}`, withTimeout({ headers })),
+    }),
+    cursorFetch(`https://cursor.com/api/usage?user=${auth.userId}`, { headers }),
   ]);
 
   if (!teamSpendRes.ok) {
@@ -932,7 +961,7 @@ async function fetchSoloUsage(
   headers: ReturnType<typeof cursorHeaders>,
   setup: SetupCache,
 ): Promise<UsagePayload | null> {
-  const res = await fetch(`https://cursor.com/api/usage?user=${auth.userId}`, withTimeout({ headers }));
+  const res = await cursorFetch(`https://cursor.com/api/usage?user=${auth.userId}`, { headers });
 
   if (!res.ok) {
     log(`Usage API failed: ${res.status}`);
@@ -994,11 +1023,11 @@ async function resolveDashboardUserId(
     return null;
   }
 
-  const res = await fetch("https://cursor.com/api/dashboard/get-team-spend", withTimeout({
+  const res = await cursorFetch("https://cursor.com/api/dashboard/get-team-spend", {
     method: "POST",
     headers,
     body: JSON.stringify({ teamId: setup.teamId }),
-  }));
+  });
   if (!res.ok) {
     log(`get-team-spend failed while resolving dashboard user id: ${res.status}`);
     return null;
@@ -1052,7 +1081,7 @@ export async function fetchDailySpendByCategory(): Promise<DailySpendRow[]> {
 
   const periodEndMs = Date.now();
   const periodStartMs = periodEndMs - 31 * 86_400_000;
-  const res = await fetch("https://cursor.com/api/dashboard/get-daily-spend-by-category", withTimeout({
+  const res = await cursorFetch("https://cursor.com/api/dashboard/get-daily-spend-by-category", {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -1063,7 +1092,7 @@ export async function fetchDailySpendByCategory(): Promise<DailySpendRow[]> {
       groupBy: 1,
       spendType: 1,
     }),
-  }));
+  });
 
   if (!res.ok) {
     log(`get-daily-spend-by-category failed: ${res.status}`);
@@ -1108,7 +1137,7 @@ export async function fetchUsageEvents(): Promise<UsageEvent[]> {
   const allEvents: UsageEvent[] = [];
 
   while (page <= MAX_USAGE_EVENT_PAGES) {
-    const res = await fetch("https://cursor.com/api/dashboard/get-filtered-usage-events", withTimeout({
+    const res = await cursorFetch("https://cursor.com/api/dashboard/get-filtered-usage-events", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -1118,7 +1147,7 @@ export async function fetchUsageEvents(): Promise<UsageEvent[]> {
         page,
         pageSize,
       }),
-    }));
+    });
 
     if (!res.ok) {
       log(`get-filtered-usage-events failed: ${res.status}`);

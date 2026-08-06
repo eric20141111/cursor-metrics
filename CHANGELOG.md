@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.24] - 2026-08-06
+
+### Added
+- Detect cursor.com's Vercel security checkpoint (HTTP 403 + `x-vercel-mitigated: challenge`) and report it as `Usage blocked` with a hint, instead of the generic `Usage unavailable`.
+
 ## [0.5.23] - 2026-08-06
 
 ### Fixed

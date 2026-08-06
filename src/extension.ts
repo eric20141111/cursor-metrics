@@ -5,6 +5,8 @@ import {
   fetchUsageData,
   fetchUsageEvents,
   isTeamMemberCached,
+  resetSecurityCheckpointFlag,
+  wasSecurityCheckpointHit,
   type DailySpendRow,
   type UsagePayload,
   type UsageEvent,
@@ -55,6 +57,10 @@ let lastEvents: UsageEvent[] | null = null;
 let lastDailySpend: DailySpendRow[] | null = null;
 
 const DEBOUNCE_MS = 30_000;
+
+const SECURITY_CHECKPOINT_MESSAGE =
+  "cursor.com answered with a security checkpoint (HTTP 403) instead of usage data. "
+  + "It usually clears within minutes; if you use a VPN or proxy, try switching it off.";
 
 function log(msg: string) {
   const ts = new Date().toISOString().slice(11, 19);
@@ -379,6 +385,7 @@ async function updateUsage() {
   isFetching = true;
 
   statusBarItem.text = statusBarItem.text.replace("$(pulse)", "$(loading~spin)");
+  resetSecurityCheckpointFlag();
   await new Promise((r) => setTimeout(r, 0));
 
   try {
@@ -409,6 +416,14 @@ async function updateUsage() {
       lastData = data;
       lastError = null;
       updateStatusBar(data);
+    } else if (wasSecurityCheckpointHit()) {
+      lastError = SECURITY_CHECKPOINT_MESSAGE;
+      if (!lastData) {
+        statusBarItem.text = "$(shield) Usage blocked";
+        statusBarItem.tooltip = `${SECURITY_CHECKPOINT_MESSAGE} Click to see options.`;
+      } else {
+        statusBarItem.text = statusBarItem.text.replace("$(loading~spin)", "$(pulse)");
+      }
     } else {
       lastError = "Could not fetch usage data";
       if (!lastData) {
